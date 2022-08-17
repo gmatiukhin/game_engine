@@ -1,33 +1,52 @@
-use winit::event::{ElementState, KeyboardInput, WindowEvent};
+use log::info;
+use winit::dpi::PhysicalPosition;
+use winit::event::{ElementState, KeyboardInput, MouseScrollDelta, WindowEvent};
 
-pub use winit::event::VirtualKeyCode as KeyCode;
-pub use winit::event::MouseButton;
+pub use winit::event::{MouseButton, VirtualKeyCode};
 
-#[derive(Default)]
-pub struct InputHandler {
-    keyboard_input: Option<KeyboardInput>,
-    mouse_button_input: Option<MouseInput>,
+#[derive(Debug, Copy, Clone)]
+pub enum ScrollDirection {
+    Up,
+    Down,
+    None,
 }
 
-struct MouseInput {
-    state: ElementState,
-    button: MouseButton,
+/// Processes input from the key presses, mouse button presses, cursor movement and mouse scroll wheel.
+/// If several inputs are being processed at the same time some information may be lost.
+pub struct InputHandler {
+    active_keys: Vec<VirtualKeyCode>,
+    active_mouse_buttons: Vec<MouseButton>,
+    current_cursor_position: cgmath::Point2<f64>,
+    previous_cursor_position: cgmath::Point2<f64>,
+    scroll_direction: ScrollDirection,
+    scroll_delta: f64,
+}
+
+impl Default for InputHandler {
+    fn default() -> Self {
+        Self {
+            active_keys: vec![],
+            active_mouse_buttons: vec![],
+            current_cursor_position: cgmath::Point2::new(0.0, 0.0),
+            previous_cursor_position: cgmath::Point2::new(0.0, 0.0),
+            scroll_direction: ScrollDirection::None,
+            scroll_delta: 0.0,
+        }
+    }
 }
 
 impl InputHandler {
     pub(crate) fn new() -> Self {
+        info!("Creating input handler");
         Default::default()
     }
 
     pub fn accept_input(&mut self, event: &WindowEvent) {
         match event {
-            WindowEvent::KeyboardInput { input, .. } => self.keyboard_input = Some(*input),
-            WindowEvent::MouseWheel { delta: _delta, .. } => {}
-            WindowEvent::MouseInput { state, button, .. } => self.mouse_button_input = Some(MouseInput {
-                state: *state,
-                button: *button,
-            }),
-            WindowEvent::CursorMoved { position: _position, .. } => {}
+            WindowEvent::KeyboardInput { input, .. } => self.accept_keyboard_input(input),
+            WindowEvent::MouseWheel { delta, .. } => self.accept_scroll_wheel_input(delta),
+            WindowEvent::MouseInput { state, button, .. } => self.accept_mouse_button_input(state, button),
+            WindowEvent::CursorMoved { position, .. } => self.accept_cursor_input(position),
             _ => {}
         }
     }
@@ -35,72 +54,116 @@ impl InputHandler {
     // o-----------------------------------o
     // |            KEYBOARD               |
     // o-----------------------------------o
-    fn on_key_change_state(&self, key_code: KeyCode, key_state: ElementState, mut function: impl FnMut()) {
-        if let Some(keyboard_input) = self.keyboard_input {
-            if let Some(key) = keyboard_input.virtual_keycode {
-                if key == key_code && keyboard_input.state == key_state {
-                    function();
+
+    fn accept_keyboard_input(&mut self, keyboard_input: &KeyboardInput) {
+        match keyboard_input {
+            KeyboardInput {
+                state,
+                virtual_keycode: Some(key_code),
+                ..
+            } => match state {
+                ElementState::Pressed => {
+                    if !self.active_keys.contains(key_code) {
+                        self.active_keys.push(*key_code);
+                    }
+                }
+                ElementState::Released => {
+                    if let Some(index) = self.active_keys.iter().position(|el| el == key_code) {
+                        self.active_keys.remove(index);
+                    }
+                }
+            },
+            _ => {}
+        }
+    }
+
+    pub fn is_key_down(&self, key_code: &VirtualKeyCode) -> bool {
+        self.active_keys.contains(key_code)
+    }
+
+    pub fn is_key_up(&self, key_code: &VirtualKeyCode) -> bool {
+        !self.is_key_down(key_code)
+    }
+
+    // o-----------------------------------o
+    // |          MOUSE BUTTONS            |
+    // o-----------------------------------o
+
+    fn accept_mouse_button_input(&mut self, state: &ElementState, button: &MouseButton) {
+        match state {
+            ElementState::Pressed => {
+                if !self.active_mouse_buttons.contains(button) {
+                    self.active_mouse_buttons.push(*button);
+                }
+            }
+            ElementState::Released => {
+                if let Some(index) = self.active_mouse_buttons.iter().position(|el| el == button) {
+                    self.active_mouse_buttons.remove(index);
                 }
             }
         }
     }
 
-    pub fn on_key_pressed(&self, key_code: KeyCode, function: impl FnMut()) {
-        self.on_key_change_state(key_code, ElementState::Pressed, function);
+    pub fn is_mouse_button_down(&self, button: &MouseButton) -> bool {
+        self.active_mouse_buttons.contains(button)
     }
 
-    pub fn on_key_released(&self, key_code: KeyCode, function: impl FnMut()) {
-        self.on_key_change_state(key_code, ElementState::Released, function);
-    }
-
-    pub fn key_input(&self) -> Option<(KeyCode, ElementState)> {
-        if let Some(key_input) = self.keyboard_input {
-            if let Some(v_code) = key_input.virtual_keycode {
-                return Some((v_code, key_input.state));
-            }
-        }
-        None
+    pub fn is_mouse_button_up(&self, button: &MouseButton) -> bool {
+        !self.is_mouse_button_down(button)
     }
 
     // o-----------------------------------o
-    // |              MOUSE                |
-    // o-----------------------------------O
+    // |             CURSOR                |
+    // o-----------------------------------o
 
-    pub fn mouse_wheel(&self) -> MouseWheelDirection {
-        todo!()
+    fn accept_cursor_input(&mut self, position: &PhysicalPosition<f64>) {
+        self.previous_cursor_position = self.current_cursor_position;
+        self.current_cursor_position = cgmath::Point2::new(position.x, position.y);
     }
 
-    pub fn mouse_delta(&self) {
-        todo!()
+    pub fn cursor_position(&self) -> cgmath::Point2<f64> {
+        self.current_cursor_position
     }
 
-    pub fn mouse_position(&self) {
-        todo!()
+    pub fn cursor_delta(&self) -> cgmath::Vector2<f64> {
+        self.current_cursor_position - self.previous_cursor_position
     }
 
-    fn on_mouse_button_change_state(&self, mouse_button: MouseButton, button_state: ElementState, mut function: impl FnMut()) {
-        if let Some(mouse_button_input) = &self.mouse_button_input {
-            if mouse_button_input.button == mouse_button && mouse_button_input.state == button_state {
-                function();
-            }
+    // o-----------------------------------o
+    // |          SCROLL WHEEL             |
+    // o-----------------------------------o
+
+    fn accept_scroll_wheel_input(&mut self, delta: &MouseScrollDelta) {
+        let scroll_delta = match delta {
+            MouseScrollDelta::LineDelta(_, scroll) => {
+                *scroll as f64
+            },
+            MouseScrollDelta::PixelDelta(PhysicalPosition { y, .. }) => {
+                *y
+            },
+        };
+        self.scroll_delta = scroll_delta;
+
+        if scroll_delta == 0.0 {
+            self.scroll_direction = ScrollDirection::None;
+        } else if scroll_delta > 0.0 {
+            self.scroll_direction = ScrollDirection::Up;
+        } else {
+            self.scroll_direction = ScrollDirection::Down;
         }
     }
 
-    pub fn on_mouse_button_pressed(&self, mouse_button: MouseButton, function: impl FnMut()) {
-        self.on_mouse_button_change_state(mouse_button, ElementState::Pressed, function);
+    pub fn scroll_direction(&self) -> ScrollDirection {
+        self.scroll_direction
     }
 
-    pub fn on_mouse_button_released(&self, mouse_button: MouseButton, function: impl FnMut()) {
-        self.on_mouse_button_change_state(mouse_button, ElementState::Released, function);
+    pub fn scroll_delta(&self) -> f64 {
+        self.scroll_delta
     }
 
-    pub fn mouse_button_key_input(&self) {
-        todo!()
+    /// Resets scroll wheel state to prevent infinite scrolling
+    pub(crate) fn reset_scroll(&mut self) {
+        self.scroll_direction = ScrollDirection::None;
+        self.scroll_delta = 0.0;
     }
-}
-
-pub enum MouseWheelDirection {
-    Up,
-    Down,
-    None,
 }
