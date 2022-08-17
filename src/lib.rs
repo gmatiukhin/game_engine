@@ -1,154 +1,76 @@
 use log::{info, warn};
+use winit::event::WindowEvent;
+use winit::event_loop::ControlFlow;
 use winit::{
     event::Event,
     event_loop::EventLoop,
     window::{Window, WindowBuilder},
 };
-use winit::event::WindowEvent;
-use winit::event_loop::ControlFlow;
 
 pub extern crate cgmath;
 
 pub mod input;
 use input::InputHandler;
+pub mod gfx;
+use gfx::Renderer;
 
-#[cfg(test)]
-mod tests {
-    use crate::*;
-
-    fn init() {
-        let _ = env_logger::builder().is_test(true).try_init();
-    }
-
-    #[test]
-    fn default_functions() {
-        init();
-
-        let game_loop = GameLoop::new();
-        let game = Game {
-            title: "default_functions".to_string(),
-            game_loop,
-        };
-
-        game.run();
-    }
-
-    #[test]
-    fn custom_functions() {
-        init();
-
-        let mut game_loop = GameLoop::new();
-
-        game_loop.on_start_call(|_| info!("Custom start function!"));
-        game_loop.on_update_call(|_, _, _| info!("Custom update function!"));
-
-        let game = Game {
-            title: "custom_functions".to_string(),
-            game_loop,
-        };
-        game.run();
-    }
+pub trait GameObject {
+    fn start(&mut self, renderer: &mut Renderer);
+    fn update(
+        &mut self,
+        renderer: &mut Renderer,
+        input_handler: &mut InputHandler,
+        dt: std::time::Duration,
+    );
 }
 
-/// Example
-/// ```
-/// use game_engine::*;
-/// let game_loop = GameLoop::new();
-/// let game = Game {
-///     title: "default_functions".to_string(),
-///     game_loop,
-/// };
-/// game.run();
-/// ```
 pub struct Game {
-    pub title: String,
-    pub game_loop: GameLoop,
-    // Todo: add game settings
+    title: String,
+    game_objects: Vec<Box<dyn GameObject>>,
 }
 
 impl Game {
-    pub fn run(self) {
-        let event_loop = EventLoop::new();
-        let window = WindowBuilder::new().with_title(self.title).build(&event_loop).unwrap();
-        self.game_loop.run(window, event_loop);
-    }
-}
-
-pub struct GameFlow {
-    flow: ControlFlow,
-}
-
-impl GameFlow {
-    pub fn new() -> Self {
+    pub fn new(title: String) -> Self {
         Self {
-            flow: Default::default()
-        }
-    }
-    pub fn exit(&mut self) {
-        self.flow = ControlFlow::Exit;
-    }
-}
-
-/// Example
-/// ```
-/// use game_engine::*;
-/// let mut game_loop = GameLoop::new();
-/// game_loop.on_start_call(|_| println!("Custom start function!"));
-/// game_loop.on_update_call(|_, _, _| println!("Custom update function!"));
-/// let game = Game {
-///     title: "custom_functions".to_string(),
-///     game_loop,
-/// };
-/// game.run();
-/// ```
-pub struct GameLoop {
-    start_fn: Box<dyn FnMut(&mut Renderer)>,
-    update_fn: Box<dyn FnMut(&mut Renderer, &mut InputHandler, std::time::Duration)>,
-    pub control_flow: GameFlow,
-}
-
-impl GameLoop {
-    pub fn new() -> Self {
-        GameLoop {
-            start_fn: Box::new(|_| warn!("Empty start function!")),
-            update_fn: Box::new(|_, _, _| warn!("Empty update function!")),
-            control_flow: GameFlow::new(),
+            title,
+            game_objects: vec![],
         }
     }
 
-    pub fn on_start_call<S>(&mut self, start_function: S)
-    where S: 'static + FnMut(&mut Renderer)
-    {
-        self.start_fn = Box::new(start_function);
+    pub fn add_game_object(&mut self, go: impl 'static + GameObject) {
+        self.game_objects.push(Box::new(go));
     }
 
-    pub fn on_update_call<U>(&mut self, update_function: U)
-    where U: 'static + FnMut(&mut Renderer, &mut InputHandler, std::time::Duration)
-    {
-        self.update_fn = Box::new(update_function);
-    }
+    pub fn run(mut self) {
+        info!("Game begins");
 
-    fn run(mut self, window: Window, event_loop: EventLoop<()>) {
-        info!("Game loop is running");
+        let event_loop = EventLoop::new();
+        let window = WindowBuilder::new()
+            .with_title(&self.title)
+            .build(&event_loop)
+            .unwrap();
 
-        let mut renderer = Renderer {};
-        let mut input = InputHandler::new();
+        let mut renderer = Renderer::new(&window);
+        let mut input_handler = InputHandler::new();
 
-        (self.start_fn)(&mut renderer);
+        for go in &mut self.game_objects {
+            go.start(&mut renderer);
+        }
 
         let mut last_time = std::time::Instant::now();
         event_loop.run(move |event, _, control_flow| {
             // Capture result from the start function
-            *control_flow = self.control_flow.flow;
             match event {
                 Event::WindowEvent { window_id, event } if window_id == window.id() => {
-                    input.accept_input(&event);
+                    input_handler.accept_input(&event);
                     match event {
                         WindowEvent::CloseRequested => *control_flow = ControlFlow::Exit,
                         WindowEvent::Resized(_physical_size) => {
                             // Todo: resize logic
                         }
-                        WindowEvent::ScaleFactorChanged { new_inner_size: _, ..} => {
+                        WindowEvent::ScaleFactorChanged {
+                            new_inner_size: _, ..
+                        } => {
                             // Todo: resize logic
                         }
                         _ => {}
@@ -158,8 +80,13 @@ impl GameLoop {
                     let now = std::time::Instant::now();
                     let dt = now - last_time;
                     last_time = now;
-                    (self.update_fn)(&mut renderer, &mut input, dt);
-                    *control_flow = self.control_flow.flow;
+
+                    for go in &mut self.game_objects {
+                        go.update(&mut renderer, &mut input_handler, dt);
+                    }
+                    input_handler.reset_scroll();
+                    // *control_flow = ControlFlow::Exit;
+
                     // Todo: render
                 }
                 // RedrawRequested will only trigger once, unless we manually request it
@@ -169,6 +96,3 @@ impl GameLoop {
         })
     }
 }
-
-// WGPU
-pub struct Renderer {}
