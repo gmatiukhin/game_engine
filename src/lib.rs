@@ -4,7 +4,7 @@ use winit::event_loop::ControlFlow;
 use winit::{
     event::Event,
     event_loop::EventLoop,
-    window::{Window, WindowBuilder},
+    window::WindowBuilder,
 };
 
 pub extern crate cgmath;
@@ -50,12 +50,13 @@ impl Game {
             .build(&event_loop)
             .unwrap();
 
-        let mut renderer = Renderer::new(&window);
+        let mut renderer = pollster::block_on(Renderer::new(&window));
         let mut input_handler = InputHandler::new();
 
         for go in &mut self.game_objects {
             go.start(&mut renderer);
         }
+        renderer.init_pipeline();
 
         let mut last_time = std::time::Instant::now();
         event_loop.run(move |event, _, control_flow| {
@@ -65,13 +66,13 @@ impl Game {
                     input_handler.accept_input(&event);
                     match event {
                         WindowEvent::CloseRequested => *control_flow = ControlFlow::Exit,
-                        WindowEvent::Resized(_physical_size) => {
-                            // Todo: resize logic
+                        WindowEvent::Resized(physical_size) => {
+                            renderer.resize(physical_size);
                         }
                         WindowEvent::ScaleFactorChanged {
-                            new_inner_size: _, ..
+                            new_inner_size, ..
                         } => {
-                            // Todo: resize logic
+                            renderer.resize(*new_inner_size);
                         }
                         _ => {}
                     }
@@ -85,9 +86,16 @@ impl Game {
                         go.update(&mut renderer, &mut input_handler, dt);
                     }
                     input_handler.reset_scroll();
-                    // *control_flow = ControlFlow::Exit;
 
-                    // Todo: render
+                    match renderer.render() {
+                        Ok(_) => {}
+                        // Reconfigure the surface if lost
+                        Err(wgpu::SurfaceError::Lost) => renderer.reload_view(),
+                        // The system is out of memory -> quit
+                        Err(wgpu::SurfaceError::OutOfMemory) => *control_flow = ControlFlow::Exit,
+                        // All other errors (Outdated, Timeout) should be resolved by the next frame
+                        Err(e) => eprintln!("{:?}", e),
+                    }
                 }
                 // RedrawRequested will only trigger once, unless we manually request it
                 Event::MainEventsCleared => window.request_redraw(),
