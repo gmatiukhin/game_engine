@@ -1,11 +1,7 @@
 use log::{info, warn};
 use winit::event::WindowEvent;
 use winit::event_loop::ControlFlow;
-use winit::{
-    event::Event,
-    event_loop::EventLoop,
-    window::WindowBuilder,
-};
+use winit::{event::Event, event_loop::EventLoop, window::WindowBuilder};
 
 pub extern crate cgmath;
 
@@ -56,7 +52,7 @@ impl Game {
         for go in &mut self.game_objects {
             go.start(&mut renderer);
         }
-        renderer.init_pipeline();
+        renderer.init();
 
         let mut last_time = std::time::Instant::now();
         event_loop.run(move |event, _, control_flow| {
@@ -69,9 +65,7 @@ impl Game {
                         WindowEvent::Resized(physical_size) => {
                             renderer.resize(physical_size);
                         }
-                        WindowEvent::ScaleFactorChanged {
-                            new_inner_size, ..
-                        } => {
+                        WindowEvent::ScaleFactorChanged { new_inner_size, .. } => {
                             renderer.resize(*new_inner_size);
                         }
                         _ => {}

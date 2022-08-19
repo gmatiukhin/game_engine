@@ -1,4 +1,4 @@
-use log::info;
+use log::{info, warn};
 use wgpu::util::DeviceExt;
 use winit::dpi::PhysicalSize;
 use winit::window::Window;
@@ -12,8 +12,8 @@ pub struct Renderer {
     surface: wgpu::Surface,
     config: wgpu::SurfaceConfiguration,
     render_pipeline: Option<wgpu::RenderPipeline>,
-    v_vec: Vec<VertexRaw>,
-    v_buffer: Option<wgpu::Buffer>,
+
+    meshes: Vec<MeshRaw>,
 }
 
 impl Renderer {
@@ -61,21 +61,27 @@ impl Renderer {
             surface,
             config,
             render_pipeline: None,
-            v_vec: vec![],
-            v_buffer: None
+            meshes: vec![],
         }
     }
 
-    pub fn add_v_buffer(&mut self, buffer: Vec<Vertex>) {
-        self.v_vec = buffer.iter().map(|el| el.into()).collect();
-        self.v_buffer = Some(self.device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("v_buffer"),
-            contents: bytemuck::cast_slice(&self.v_vec),
-            usage: wgpu::BufferUsages::VERTEX,
-        }));
+    pub fn add_mesh(&mut self, mesh: &Mesh) {
+        self.meshes.push(mesh.as_mesh_raw(&self.device));
     }
 
-    pub(crate) fn init_pipeline(&mut self) {
+    pub fn update_mesh(&mut self, mesh: &mut Mesh) {
+        if let Some(index) = self.meshes.iter().position(|el| el == mesh) {
+            if let Some(mesh_raw) = self.meshes.get_mut(index) {
+                *mesh_raw = mesh.as_mesh_raw(&self.device);
+            }
+        }
+    }
+
+    pub(crate) fn init(&mut self) {
+        self.init_pipeline();
+    }
+
+    fn init_pipeline(&mut self) {
         let render_pipeline_layout =
             self.device
                 .create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
@@ -140,39 +146,41 @@ impl Renderer {
 
     pub(crate) fn render(&self) -> anyhow::Result<(), wgpu::SurfaceError> {
         let surface_texture = self.surface.get_current_texture()?;
-        let view = surface_texture.texture.create_view(&wgpu::TextureViewDescriptor::default());
+        let view = surface_texture
+            .texture
+            .create_view(&wgpu::TextureViewDescriptor::default());
 
-        let mut command_encoder = self.device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: Some("render_pass_encoder") });
+        let mut command_encoder =
+            self.device
+                .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                    label: Some("render_pass_encoder"),
+                });
 
         {
             let mut render_pass = command_encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("render_pass"),
-                color_attachments: &[
-                    Some(wgpu::RenderPassColorAttachment {
-                        view: &view,
-                        resolve_target: None,
-                        ops: wgpu::Operations {
-                            load: wgpu::LoadOp::Clear(Color {
-                                r: 0.1,
-                                g: 0.2,
-                                b: 0.3,
-                                a: 1.0,
-                            }),
-                            store: true
-                        }
-                    })
-                ],
-                depth_stencil_attachment: None
+                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                    view: &view,
+                    resolve_target: None,
+                    ops: wgpu::Operations {
+                        load: wgpu::LoadOp::Clear(Color {
+                            r: 0.1,
+                            g: 0.2,
+                            b: 0.3,
+                            a: 1.0,
+                        }),
+                        store: true,
+                    },
+                })],
+                depth_stencil_attachment: None,
             });
 
             if let Some(pipeline) = &self.render_pipeline {
                 render_pass.set_pipeline(pipeline);
-                if let Some(buffer) = &self.v_buffer {
-                    render_pass.set_vertex_buffer(0, buffer.slice(..));
-                    render_pass.draw(0..self.v_vec.len() as u32, 0..1);
+                for mesh in &self.meshes {
+                    mesh.render(&mut render_pass);
                 }
             }
-
         }
 
         self.queue.submit(std::iter::once(command_encoder.finish()));
@@ -209,11 +217,12 @@ struct VertexRaw {
 
 impl VertexRaw {
     fn layout<'a>() -> wgpu::VertexBufferLayout<'a> {
-        const ATTRIBS: [wgpu::VertexAttribute; 2] = wgpu::vertex_attr_array![0 => Float32x3, 1 => Float32x4];
+        const ATTRIBS: [wgpu::VertexAttribute; 2] =
+            wgpu::vertex_attr_array![0 => Float32x3, 1 => Float32x4];
         wgpu::VertexBufferLayout {
             array_stride: std::mem::size_of::<Self>() as wgpu::BufferAddress,
             step_mode: wgpu::VertexStepMode::Vertex,
-            attributes: &ATTRIBS
+            attributes: &ATTRIBS,
         }
     }
 }
@@ -229,5 +238,83 @@ impl From<&Vertex> for VertexRaw {
                 v.color.a as f32,
             ],
         }
+    }
+}
+
+pub struct Mesh {
+    pub name: String,
+
+    pub vertices: Vec<Vertex>,
+    pub indices: Vec<u32>,
+}
+
+impl Mesh {
+    fn as_mesh_raw(&self, device: &wgpu::Device) -> MeshRaw {
+        info!("Transforming Mesh into MeshRaw");
+        let mut v_buffer: Option<wgpu::Buffer> = None;
+        if !self.vertices.is_empty() {
+            let v_vec_raw: Vec<VertexRaw> = self.vertices.iter().map(|el| el.into()).collect();
+            v_buffer = Some(
+                device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                    label: Some(&format!("{}'s vertex buffer", self.name)),
+                    contents: bytemuck::cast_slice(&v_vec_raw),
+                    usage: wgpu::BufferUsages::VERTEX,
+                }),
+            );
+        } else {
+            warn!("Empty vertex buffer of {}", self.name);
+        }
+
+        let mut i_buffer: Option<wgpu::Buffer> = None;
+        if !self.indices.is_empty() {
+            i_buffer = Some(
+                device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                    label: Some(&format!("{}'s index buffer", self.name)),
+                    contents: bytemuck::cast_slice(&self.indices),
+                    usage: wgpu::BufferUsages::INDEX,
+                }),
+            );
+        } else {
+            warn!("Empty index buffer of {}", self.name);
+        }
+
+        MeshRaw {
+            name: self.name.clone(),
+            vertex_buffer: v_buffer,
+            vertices_length: self.vertices.len() as u32,
+            index_buffer: i_buffer,
+            indices_length: self.indices.len() as u32,
+        }
+    }
+}
+
+struct MeshRaw {
+    name: String,
+
+    vertex_buffer: Option<wgpu::Buffer>,
+    vertices_length: u32,
+
+    index_buffer: Option<wgpu::Buffer>,
+    indices_length: u32,
+}
+
+impl MeshRaw {
+    fn render<'a>(&'a self, render_pass: &mut wgpu::RenderPass<'a>) {
+        if let Some(v_buffer) = &self.vertex_buffer {
+            render_pass.set_vertex_buffer(0, v_buffer.slice(..));
+        }
+
+        if let Some(i_buffer) = &self.index_buffer {
+            render_pass.set_index_buffer(i_buffer.slice(..), wgpu::IndexFormat::Uint32);
+            render_pass.draw_indexed(0..self.indices_length, 0, 0..1);
+        } else {
+            render_pass.draw(0..self.vertices_length, 0..1);
+        }
+    }
+}
+
+impl PartialEq<Mesh> for MeshRaw {
+    fn eq(&self, other: &Mesh) -> bool {
+        self.name == other.name
     }
 }

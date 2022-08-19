@@ -16,10 +16,10 @@ pub enum ScrollDirection {
 pub struct InputHandler {
     active_keys: Vec<VirtualKeyCode>,
     active_mouse_buttons: Vec<MouseButton>,
-    current_cursor_position: cgmath::Point2<f64>,
-    previous_cursor_position: cgmath::Point2<f64>,
+    current_cursor_position: cgmath::Point2<f32>,
+    previous_cursor_position: cgmath::Point2<f32>,
     scroll_direction: ScrollDirection,
-    scroll_delta: f64,
+    scroll_delta: f32,
 }
 
 impl Default for InputHandler {
@@ -45,7 +45,9 @@ impl InputHandler {
         match event {
             WindowEvent::KeyboardInput { input, .. } => self.accept_keyboard_input(input),
             WindowEvent::MouseWheel { delta, .. } => self.accept_scroll_wheel_input(delta),
-            WindowEvent::MouseInput { state, button, .. } => self.accept_mouse_button_input(state, button),
+            WindowEvent::MouseInput { state, button, .. } => {
+                self.accept_mouse_button_input(state, button)
+            }
             WindowEvent::CursorMoved { position, .. } => self.accept_cursor_input(position),
             _ => {}
         }
@@ -118,14 +120,14 @@ impl InputHandler {
 
     fn accept_cursor_input(&mut self, position: &PhysicalPosition<f64>) {
         self.previous_cursor_position = self.current_cursor_position;
-        self.current_cursor_position = cgmath::Point2::new(position.x, position.y);
+        self.current_cursor_position = cgmath::Point2::new(position.x as f32, position.y as f32);
     }
 
-    pub fn cursor_position(&self) -> cgmath::Point2<f64> {
+    pub fn cursor_position(&self) -> cgmath::Point2<f32> {
         self.current_cursor_position
     }
 
-    pub fn cursor_delta(&self) -> cgmath::Vector2<f64> {
+    pub fn cursor_delta(&self) -> cgmath::Vector2<f32> {
         self.current_cursor_position - self.previous_cursor_position
     }
 
@@ -135,12 +137,8 @@ impl InputHandler {
 
     fn accept_scroll_wheel_input(&mut self, delta: &MouseScrollDelta) {
         let scroll_delta = match delta {
-            MouseScrollDelta::LineDelta(_, scroll) => {
-                *scroll as f64
-            },
-            MouseScrollDelta::PixelDelta(PhysicalPosition { y, .. }) => {
-                *y
-            },
+            MouseScrollDelta::LineDelta(_, scroll) => *scroll,
+            MouseScrollDelta::PixelDelta(PhysicalPosition { y, .. }) => *y as f32,
         };
         self.scroll_delta = scroll_delta;
 
@@ -157,7 +155,7 @@ impl InputHandler {
         self.scroll_direction
     }
 
-    pub fn scroll_delta(&self) -> f64 {
+    pub fn scroll_delta(&self) -> f32 {
         self.scroll_delta
     }
 
