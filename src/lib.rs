@@ -1,4 +1,4 @@
-use log::{info, warn};
+use log::info;
 use winit::event::WindowEvent;
 use winit::event_loop::ControlFlow;
 use winit::{event::Event, event_loop::EventLoop, window::WindowBuilder};
@@ -52,7 +52,8 @@ impl Game {
         for go in &mut self.game_objects {
             go.start(&mut renderer);
         }
-        renderer.init();
+        renderer.update_components();
+        renderer.init_pipeline();
 
         let mut last_time = std::time::Instant::now();
         event_loop.run(move |event, _, control_flow| {
@@ -80,6 +81,8 @@ impl Game {
                         go.update(&mut renderer, &mut input_handler, dt);
                     }
                     input_handler.reset_scroll();
+                    input_handler.reset_cursor_delta();
+                    renderer.update_components();
 
                     match renderer.render() {
                         Ok(_) => {}

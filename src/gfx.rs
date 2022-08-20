@@ -1,19 +1,25 @@
 use log::{info, warn};
+use std::collections::HashMap;
 use wgpu::util::DeviceExt;
 use winit::dpi::PhysicalSize;
 use winit::window::Window;
 
+use crate::gfx::camera::{Camera, CameraState};
 pub use wgpu::Color;
 
+pub mod camera;
+
 pub struct Renderer {
-    size: PhysicalSize<u32>,
+    screen_size: PhysicalSize<u32>,
     device: wgpu::Device,
     queue: wgpu::Queue,
     surface: wgpu::Surface,
     config: wgpu::SurfaceConfiguration,
     render_pipeline: Option<wgpu::RenderPipeline>,
 
-    meshes: Vec<MeshRaw>,
+    camera_state: CameraState,
+
+    meshes: HashMap<String, MeshRaw>,
 }
 
 impl Renderer {
@@ -43,50 +49,53 @@ impl Renderer {
             .await
             .unwrap();
 
-        let size = window.inner_size();
+        let screen_size = window.inner_size();
         let config = wgpu::SurfaceConfiguration {
             usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
             format: surface.get_supported_formats(&adapter)[0],
-            width: size.width,
-            height: size.height,
+            width: screen_size.width,
+            height: screen_size.height,
             present_mode: wgpu::PresentMode::Fifo,
         };
 
         surface.configure(&device, &config);
 
+        let camera_state = CameraState::default_state(&device, &config);
+
         Self {
-            size,
+            screen_size,
             device,
             queue,
             surface,
             config,
             render_pipeline: None,
-            meshes: vec![],
+            camera_state,
+            meshes: HashMap::new(),
         }
     }
 
     pub fn add_mesh(&mut self, mesh: &Mesh) {
-        self.meshes.push(mesh.as_mesh_raw(&self.device));
+        self.meshes
+            .insert(mesh.name.clone(), mesh.as_mesh_raw(&self.device));
     }
 
-    pub fn update_mesh(&mut self, mesh: &mut Mesh) {
-        if let Some(index) = self.meshes.iter().position(|el| el == mesh) {
-            if let Some(mesh_raw) = self.meshes.get_mut(index) {
-                *mesh_raw = mesh.as_mesh_raw(&self.device);
-            }
+    pub fn update_mesh(&mut self, mesh: &Mesh) {
+
+        if let Some(mesh_raw) = self.meshes.get_mut(&mesh.name) {
+            *mesh_raw = mesh.as_mesh_raw(&self.device);
         }
     }
 
-    pub(crate) fn init(&mut self) {
-        self.init_pipeline();
+    pub fn camera(&mut self) -> &mut Camera {
+        &mut self.camera_state.camera
     }
 
-    fn init_pipeline(&mut self) {
+    pub(crate) fn init_pipeline(&mut self) {
         let render_pipeline_layout =
             self.device
                 .create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
                     label: Some("render_pipeline_layout"),
-                    bind_group_layouts: &[],
+                    bind_group_layouts: &[&self.camera_state.camera_bind_group_layout],
                     push_constant_ranges: &[],
                 });
 
@@ -113,7 +122,7 @@ impl Renderer {
                 vertex: wgpu::VertexState {
                     module: &vertex_shader_module,
                     entry_point: "vs_main",
-                    buffers: &[VertexRaw::layout()],
+                    buffers: &[VertexRaw::format()],
                 },
                 fragment: Some(wgpu::FragmentState {
                     module: &fragment_shader_module,
@@ -145,61 +154,67 @@ impl Renderer {
     }
 
     pub(crate) fn render(&self) -> anyhow::Result<(), wgpu::SurfaceError> {
-        let surface_texture = self.surface.get_current_texture()?;
-        let view = surface_texture
-            .texture
-            .create_view(&wgpu::TextureViewDescriptor::default());
+            let surface_texture = self.surface.get_current_texture()?;
+            let view = surface_texture
+                .texture
+                .create_view(&wgpu::TextureViewDescriptor::default());
 
-        let mut command_encoder =
-            self.device
-                .create_command_encoder(&wgpu::CommandEncoderDescriptor {
-                    label: Some("render_pass_encoder"),
+            let mut command_encoder =
+                self.device
+                    .create_command_encoder(&wgpu::CommandEncoderDescriptor {
+                        label: Some("render_pass_encoder"),
+                    });
+
+            {
+                let mut render_pass = command_encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                    label: Some("render_pass"),
+                    color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                        view: &view,
+                        resolve_target: None,
+                        ops: wgpu::Operations {
+                            load: wgpu::LoadOp::Clear(Color {
+                                r: 0.1,
+                                g: 0.2,
+                                b: 0.3,
+                                a: 1.0,
+                            }),
+                            store: true,
+                        },
+                    })],
+                    depth_stencil_attachment: None,
                 });
 
-        {
-            let mut render_pass = command_encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                label: Some("render_pass"),
-                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                    view: &view,
-                    resolve_target: None,
-                    ops: wgpu::Operations {
-                        load: wgpu::LoadOp::Clear(Color {
-                            r: 0.1,
-                            g: 0.2,
-                            b: 0.3,
-                            a: 1.0,
-                        }),
-                        store: true,
-                    },
-                })],
-                depth_stencil_attachment: None,
-            });
-
-            if let Some(pipeline) = &self.render_pipeline {
-                render_pass.set_pipeline(pipeline);
-                for mesh in &self.meshes {
-                    mesh.render(&mut render_pass);
+                if let Some(pipeline) = &self.render_pipeline {
+                    render_pass.set_pipeline(pipeline);
+                    for (_, mesh) in &self.meshes {
+                        render_pass.set_bind_group(0, &self.camera_state.camera_bind_group, &[]);
+                        mesh.render(&mut render_pass);
+                    }
                 }
             }
-        }
 
-        self.queue.submit(std::iter::once(command_encoder.finish()));
-        surface_texture.present();
+            self.queue.submit(std::iter::once(command_encoder.finish()));
+            surface_texture.present();
 
-        Ok(())
+            Ok(())
     }
 
     pub(crate) fn reload_view(&mut self) {
-        self.resize(self.size);
+        self.resize(self.screen_size);
     }
 
     pub(crate) fn resize(&mut self, new_size: PhysicalSize<u32>) {
         if new_size.width > 0 && new_size.height > 0 {
-            self.size = new_size;
+            self.screen_size = new_size;
             self.config.width = new_size.width;
             self.config.height = new_size.height;
             self.surface.configure(&self.device, &self.config);
+            self.camera_state.camera.resize(new_size.width, new_size.height);
         }
+    }
+
+    pub(crate) fn update_components(&mut self) {
+        self.camera_state.update(&self.queue);
     }
 }
 
@@ -216,7 +231,7 @@ struct VertexRaw {
 }
 
 impl VertexRaw {
-    fn layout<'a>() -> wgpu::VertexBufferLayout<'a> {
+    fn format<'a>() -> wgpu::VertexBufferLayout<'a> {
         const ATTRIBS: [wgpu::VertexAttribute; 2] =
             wgpu::vertex_attr_array![0 => Float32x3, 1 => Float32x4];
         wgpu::VertexBufferLayout {

@@ -18,6 +18,7 @@ pub struct InputHandler {
     active_mouse_buttons: Vec<MouseButton>,
     current_cursor_position: cgmath::Point2<f32>,
     previous_cursor_position: cgmath::Point2<f32>,
+    cursor_delta: cgmath::Vector2<f32>,
     scroll_direction: ScrollDirection,
     scroll_delta: f32,
 }
@@ -29,6 +30,7 @@ impl Default for InputHandler {
             active_mouse_buttons: vec![],
             current_cursor_position: cgmath::Point2::new(0.0, 0.0),
             previous_cursor_position: cgmath::Point2::new(0.0, 0.0),
+            cursor_delta: cgmath::Vector2::new(0.0, 0.0),
             scroll_direction: ScrollDirection::None,
             scroll_delta: 0.0,
         }
@@ -121,6 +123,7 @@ impl InputHandler {
     fn accept_cursor_input(&mut self, position: &PhysicalPosition<f64>) {
         self.previous_cursor_position = self.current_cursor_position;
         self.current_cursor_position = cgmath::Point2::new(position.x as f32, position.y as f32);
+        self.cursor_delta = self.current_cursor_position - self.previous_cursor_position;
     }
 
     pub fn cursor_position(&self) -> cgmath::Point2<f32> {
@@ -128,7 +131,11 @@ impl InputHandler {
     }
 
     pub fn cursor_delta(&self) -> cgmath::Vector2<f32> {
-        self.current_cursor_position - self.previous_cursor_position
+        self.cursor_delta
+    }
+
+    pub(crate) fn reset_cursor_delta(&mut self) {
+        self.cursor_delta = cgmath::Vector2::new(0.0, 0.0);
     }
 
     // o-----------------------------------o
