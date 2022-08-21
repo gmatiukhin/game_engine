@@ -53,7 +53,7 @@ impl Game {
             go.start(&mut renderer);
         }
         renderer.update_components();
-        renderer.init_pipeline();
+        renderer.init_pipelines();
 
         let mut last_time = std::time::Instant::now();
         event_loop.run(move |event, _, control_flow| {

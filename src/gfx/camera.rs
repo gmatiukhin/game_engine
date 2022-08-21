@@ -48,11 +48,7 @@ impl Camera {
 
     /// AKA world-to-camera matrix
     pub(crate) fn calc_view_matrix(&self) -> Matrix4<f32> {
-        Matrix4::look_to_rh(
-            self.position,
-            self.view_direction(),
-            self.up_direction(),
-        )
+        Matrix4::look_to_rh(self.position, self.view_direction(), self.up_direction())
     }
 
     pub(crate) fn calc_projection(&self) -> Matrix4<f32> {
@@ -75,7 +71,8 @@ impl Camera {
             x: self.yaw.sin(),
             y: -self.pitch.sin(),
             z: -self.yaw.cos(),
-        }.normalize()
+        }
+        .normalize()
     }
 
     pub fn right_direction(&self) -> Vector3<f32> {
