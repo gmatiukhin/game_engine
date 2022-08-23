@@ -334,21 +334,8 @@ impl Renderer {
         self.prefabs
             .entry(prefab_name.to_string())
             .and_modify(|(_, prefab)| {
-                prefab.transforms.insert(
-                    prefab.transforms.len(),
-                    InstanceTransform {
-                        position: position.clone(),
-                        rotation: rotation.clone(),
-                    },
-                );
-                // Todo: put in one method
+                instance_handle = Some(prefab.add_instance(position, rotation));
                 prefab.update_buffer(&self.device);
-                instance_handle = Some(PrefabInstance {
-                    name: prefab_name.to_string(),
-                    hash: prefab.transforms.len() - 1,
-                    position: position.clone(),
-                    rotation: rotation.clone(),
-                });
             });
 
         instance_handle
@@ -358,18 +345,17 @@ impl Renderer {
         self.prefabs
             .entry(instance.name.clone())
             .and_modify(|(_, prefab)| {
-                prefab
-                    .transforms
-                    .entry(instance.hash)
-                    .and_modify(|instance_transform| {
-                        instance_transform.position = instance.position;
-                        instance_transform.rotation = instance.rotation;
-                    });
+                prefab.update_instance(instance);
                 prefab.update_buffer(&self.device);
             });
     }
 
-    pub fn delete_prefab_instance(&mut self, _instance_handle: &PrefabInstance) {
-        todo!()
+    pub fn delete_prefab_instance(&mut self, instance: &PrefabInstance) {
+        self.prefabs.entry(instance.name.clone()).and_modify(
+            |(_, prefab)| {
+                prefab.remove_instance(instance);
+                prefab.update_buffer(&self.device);
+            }
+        );
     }
 }
