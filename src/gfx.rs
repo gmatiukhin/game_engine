@@ -1,33 +1,30 @@
-use std::collections::hash_map::DefaultHasher;
 use log::info;
 use std::collections::HashMap;
-use std::hash::{Hash, Hasher};
 use winit::dpi::PhysicalSize;
 use winit::window::Window;
 
 use crate::gfx::camera::{Camera, CameraState};
 pub use wgpu::Color;
-use wgpu::ShaderModule;
 
 pub mod camera;
 pub mod components;
 use components::*;
+
+pub mod texture;
 
 pub struct Renderer {
     screen_size: PhysicalSize<u32>,
     device: wgpu::Device,
     queue: wgpu::Queue,
     surface: wgpu::Surface,
-    config: wgpu::SurfaceConfiguration,
-    mesh_render_pipeline: Option<wgpu::RenderPipeline>,
-    instance_render_pipeline: Option<wgpu::RenderPipeline>,
+    surface_config: wgpu::SurfaceConfiguration,
+    depth_texture: texture::Texture,
 
     camera_state: CameraState,
+    texture_bind_group_layout: wgpu::BindGroupLayout,
 
-    meshes: HashMap<String, MeshRaw>,
-    prefabs: HashMap<String, Prefab>,
-
-    hasher: Box<dyn Hasher>,
+    models: HashMap<String, (wgpu::RenderPipeline, ModelBuffered)>,
+    prefabs: HashMap<String, (wgpu::RenderPipeline, Prefab)>,
 }
 
 impl Renderer {
@@ -58,7 +55,7 @@ impl Renderer {
             .unwrap();
 
         let screen_size = window.inner_size();
-        let config = wgpu::SurfaceConfiguration {
+        let surface_config = wgpu::SurfaceConfiguration {
             usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
             format: surface.get_supported_formats(&adapter)[0],
             width: screen_size.width,
@@ -66,120 +63,124 @@ impl Renderer {
             present_mode: wgpu::PresentMode::Fifo,
         };
 
-        surface.configure(&device, &config);
+        surface.configure(&device, &surface_config);
 
-        let camera_state = CameraState::default_state(&device, &config);
+        let camera_state = CameraState::default_state(&device, &surface_config);
+
+        let depth_texture = texture::Texture::depth_texture(&device, &surface_config);
+
+        let texture_bind_group_layout =
+            device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+                label: Some("texture_bind_group_layout"),
+                entries: &[
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 0,
+                        visibility: wgpu::ShaderStages::FRAGMENT,
+                        ty: wgpu::BindingType::Texture {
+                            sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                            view_dimension: wgpu::TextureViewDimension::D2,
+                            multisampled: false,
+                        },
+                        count: None,
+                    },
+                    wgpu::BindGroupLayoutEntry {
+                        binding: 1,
+                        visibility: wgpu::ShaderStages::FRAGMENT,
+                        ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
+                        count: None,
+                    },
+                ],
+            });
 
         Self {
             screen_size,
             device,
             queue,
             surface,
-            config,
-            mesh_render_pipeline: None,
-            instance_render_pipeline: None,
+            surface_config,
+            depth_texture,
             camera_state,
-            meshes: HashMap::new(),
+            texture_bind_group_layout,
+            models: HashMap::new(),
             prefabs: HashMap::new(),
-            hasher: Box::new(DefaultHasher::new()),
         }
     }
 
-    pub(crate) fn init_pipelines(&mut self) {
-        let vertex_shader_module = self
-            .device
-            .create_shader_module(wgpu::ShaderModuleDescriptor {
-                label: Some("mesh_vertex_shader"),
-                source: wgpu::ShaderSource::Wgsl(
-                    include_str!("../res/vertex_default.wgsl").into(),
-                ),
-            });
+    fn default_vertex_shader_module(&self) -> wgpu::ShaderModule {
+        self.device.create_shader_module(wgpu::ShaderModuleDescriptor {
+            label: Some("mesh_vertex_shader"),
+            source: wgpu::ShaderSource::Wgsl(include_str!("./shaders/vertex_default.wgsl").into()),
+        })
+    }
 
-        let fragment_shader_module =
-            self.device
-                .create_shader_module(wgpu::ShaderModuleDescriptor {
-                    label: Some("default_fragment_shader"),
-                    source: wgpu::ShaderSource::Wgsl(
-                        include_str!("../res/fragment_default.wgsl").into(),
-                    ),
-                });
+    fn instance_vertex_shader_module(&self) -> wgpu::ShaderModule {
+        self.device.create_shader_module(wgpu::ShaderModuleDescriptor {
+            label: Some("instanced_vertex_shader"),
+            source: wgpu::ShaderSource::Wgsl(include_str!("./shaders/vertex_instanced.wgsl").into()),
+        })
+    }
 
-        self.mesh_render_pipeline = Some(self.create_pipeline(
-            "mesh_render_pipeline",
-            &[VertexRaw::format()],
-            &vertex_shader_module,
-            &fragment_shader_module,
-        ));
-
-        if !self.prefabs.is_empty() {
-            let vertex_shader_module =
-                self.device
-                    .create_shader_module(wgpu::ShaderModuleDescriptor {
-                        label: Some("instance_vertex_shader"),
-                        source: wgpu::ShaderSource::Wgsl(
-                            include_str!("../res/vertex_instanced.wgsl").into(),
-                        ),
-                    });
-
-            self.instance_render_pipeline = Some(self.create_pipeline(
-                "instance_render_pipeline",
-                &[VertexRaw::format(), InstanceTransformRaw::format()],
-                &vertex_shader_module,
-                &fragment_shader_module,
-            ));
-        }
+    fn default_fragment_shader_module(&self) -> wgpu::ShaderModule {
+        self.device.create_shader_module(wgpu::ShaderModuleDescriptor {
+            label: Some("default_fragment_shader"),
+            source: wgpu::ShaderSource::Wgsl(include_str!("./shaders/fragment_default.wgsl").into()),
+        })
     }
 
     fn create_pipeline(
-        &mut self,
-        label: &str,
+        &self,
         buffer_layouts: &[wgpu::VertexBufferLayout],
-        vertex_shader_module: &ShaderModule,
-        fragment_shader_module: &ShaderModule,
+        vertex_shader_module: &wgpu::ShaderModule,
+        fragment_shader_module: &wgpu::ShaderModule,
+        label: &str,
     ) -> wgpu::RenderPipeline {
         let render_pipeline_layout =
-            self.device
-                .create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-                    label: Some("render_pipeline_layout"),
-                    bind_group_layouts: &[&self.camera_state.camera_bind_group_layout],
-                    push_constant_ranges: &[],
-                });
+            self.device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+                label: Some("render_pipeline_layout"),
+                bind_group_layouts: &[&self.camera_state.camera_bind_group_layout, &self.texture_bind_group_layout],
+                push_constant_ranges: &[],
+            });
 
-        self.device
-            .create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-                label: Some(label),
-                layout: Some(&render_pipeline_layout),
-                vertex: wgpu::VertexState {
-                    module: &vertex_shader_module,
-                    entry_point: "vs_main",
-                    buffers: buffer_layouts,
-                },
-                fragment: Some(wgpu::FragmentState {
-                    module: &fragment_shader_module,
-                    entry_point: "fs_main",
-                    targets: &[Some(wgpu::ColorTargetState {
-                        format: self.config.format,
-                        blend: Some(wgpu::BlendState::REPLACE),
-                        write_mask: wgpu::ColorWrites::all(),
-                    })],
-                }),
-                primitive: wgpu::PrimitiveState {
-                    topology: wgpu::PrimitiveTopology::TriangleList,
-                    strip_index_format: None,
-                    front_face: wgpu::FrontFace::Ccw,
-                    cull_mode: Some(wgpu::Face::Back),
-                    unclipped_depth: false,
-                    polygon_mode: wgpu::PolygonMode::Fill,
-                    conservative: false,
-                },
-                depth_stencil: None,
-                multisample: wgpu::MultisampleState {
-                    count: 1,
-                    mask: !0,
-                    alpha_to_coverage_enabled: false,
-                },
-                multiview: None,
-            })
+        self.device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+            label: Some(label),
+            layout: Some(&render_pipeline_layout),
+            vertex: wgpu::VertexState {
+                module: &vertex_shader_module,
+                entry_point: "vs_main",
+                buffers: buffer_layouts,
+            },
+            fragment: Some(wgpu::FragmentState {
+                module: &fragment_shader_module,
+                entry_point: "fs_main",
+                targets: &[Some(wgpu::ColorTargetState {
+                    format: self.surface_config.format,
+                    blend: Some(wgpu::BlendState::PREMULTIPLIED_ALPHA_BLENDING),
+                    write_mask: wgpu::ColorWrites::all(),
+                })],
+            }),
+            primitive: wgpu::PrimitiveState {
+                topology: wgpu::PrimitiveTopology::TriangleList,
+                strip_index_format: None,
+                front_face: wgpu::FrontFace::Ccw,
+                cull_mode: Some(wgpu::Face::Back),
+                unclipped_depth: false,
+                polygon_mode: wgpu::PolygonMode::Fill,
+                conservative: false,
+            },
+            depth_stencil: Some(wgpu::DepthStencilState {
+                format: texture::Texture::DEPTH_TEXTURE_FORMAT,
+                depth_write_enabled: true,
+                depth_compare: wgpu::CompareFunction::Less,
+                stencil: Default::default(),
+                bias: Default::default(),
+            }),
+            multisample: wgpu::MultisampleState {
+                count: 1,
+                mask: !0,
+                alpha_to_coverage_enabled: false,
+            },
+            multiview: None,
+        })
     }
 
     pub(crate) fn render(&self) -> anyhow::Result<(), wgpu::SurfaceError> {
@@ -210,23 +211,25 @@ impl Renderer {
                         store: true,
                     },
                 })],
-                depth_stencil_attachment: None,
+                depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
+                    view: &self.depth_texture.view,
+                    depth_ops: Some(wgpu::Operations {
+                        load: wgpu::LoadOp::Clear(1.0),
+                        store: true,
+                    }),
+                    stencil_ops: None,
+                }),
             });
             render_pass.set_bind_group(0, &self.camera_state.camera_bind_group, &[]);
-            if let Some(pipeline) = &self.mesh_render_pipeline {
-                render_pass.set_pipeline(pipeline);
 
-                for (_, mesh) in &self.meshes {
-                    mesh.render(&mut render_pass);
-                }
+            for (_, (pipeline, model)) in &self.models {
+                render_pass.set_pipeline(pipeline);
+                model.render(&mut render_pass, 0..1);
             }
 
-            if let Some(pipeline) = &self.instance_render_pipeline {
+            for (_, (pipeline, prefab)) in &self.prefabs {
                 render_pass.set_pipeline(pipeline);
-
-                for (_, prefab) in &self.prefabs {
-                    prefab.render(&mut render_pass);
-                }
+                prefab.render(&mut render_pass);
             }
         }
 
@@ -243,9 +246,11 @@ impl Renderer {
     pub(crate) fn resize(&mut self, new_size: PhysicalSize<u32>) {
         if new_size.width > 0 && new_size.height > 0 {
             self.screen_size = new_size;
-            self.config.width = new_size.width;
-            self.config.height = new_size.height;
-            self.surface.configure(&self.device, &self.config);
+            self.surface_config.width = new_size.width;
+            self.surface_config.height = new_size.height;
+            self.surface.configure(&self.device, &self.surface_config);
+            self.depth_texture =
+                texture::Texture::depth_texture(&self.device, &self.surface_config);
             self.camera_state
                 .camera
                 .resize(new_size.width, new_size.height);
@@ -254,84 +259,117 @@ impl Renderer {
 
     pub(crate) fn update_components(&mut self) {
         self.camera_state.update(&self.queue);
-        self.update_instances();
     }
 
-    fn update_instances(&mut self) {
-        for (_, prefab) in &mut self.prefabs {
-            prefab.update_buffer(&self.device);
-        }
+    pub fn camera(&mut self) -> &mut Camera {
+        &mut self.camera_state.camera
     }
 }
 
 impl Renderer {
-    pub fn add_mesh(&mut self, mesh: &Mesh) {
-        self.meshes
-            .insert(mesh.name.clone(), mesh.as_raw(&self.device));
-    }
+    pub fn add_model(&mut self, model: &Model) {
+        let model = model.buffer(&self.device, &self.queue, &self.texture_bind_group_layout);
 
-    pub fn update_mesh(&mut self, mesh: &Mesh) {
-        if let Some(mesh_raw) = self.meshes.get_mut(&mesh.name) {
-            *mesh_raw = mesh.as_raw(&self.device);
-        }
-    }
-
-    pub fn add_as_prefab(&mut self, mesh: &Mesh) {
-        self.prefabs.insert(
-            mesh.name.clone(),
-            Prefab {
-                name: mesh.name.clone(),
-                mesh: mesh.as_raw(&self.device),
-                transforms: HashMap::new(),
-                instance_buffer: None,
-            },
+        let render_pipeline = self.create_pipeline(
+            &[VertexRaw::format()],
+            &self.default_vertex_shader_module(),
+            &model
+                .shader_module
+                .as_ref()
+                .unwrap_or(&self.default_fragment_shader_module()),
+            &format!("Render pipeline for model {}", model.name),
         );
+
+        self.models
+            .insert(model.name.clone(), (render_pipeline, model));
+    }
+
+    pub fn update_model(&mut self, model: &Model) {
+        self.models.entry(model.name.clone()).and_modify(
+            |(_, m)| *m = model.buffer(&self.device, &self.queue, &self.texture_bind_group_layout)
+        );
+    }
+
+    pub fn delete_model(&mut self, model: Model) {
+        self.models.remove(&model.name);
+    }
+}
+
+impl Renderer {
+    pub fn add_as_prefab(&mut self, model: &Model) -> String {
+        let model = model.buffer(&self.device, &self.queue, &self.texture_bind_group_layout);
+
+        let render_pipeline = self.create_pipeline(
+            &[VertexRaw::format(), InstanceTransformRaw::format()],
+            &self.instance_vertex_shader_module(),
+            &model
+                .shader_module
+                .as_ref()
+                .unwrap_or(&self.default_fragment_shader_module()),
+            &format!("Render pipeline for model {}", model.name),
+        );
+
+        let prefab = Prefab {
+            name: model.name.clone(),
+            model,
+            transforms: HashMap::new(),
+            instance_buffer: None,
+        };
+
+        let name = prefab.name.clone();
+
+        self.prefabs
+            .insert(prefab.name.clone(), (render_pipeline, prefab));
+
+        name
     }
 
     pub fn instantiate_prefab(
         &mut self,
         prefab_name: &str,
-        position: cgmath::Point3<f32>,
-        rotation: cgmath::Quaternion<f32>,
-    ) -> Option<u64> {
-        let mut prefab_handle = None;
+        position: &cgmath::Point3<f32>,
+        rotation: &cgmath::Quaternion<f32>,
+    ) -> Option<PrefabInstance> {
+        let mut instance_handle = None;
         self.prefabs
             .entry(prefab_name.to_string())
-            .and_modify(|prefab| {
-                let transform = InstanceTransform {
-                    position,
-                    rotation
-                };
-                transform.hash(&mut self.hasher);
-                let value = self.hasher.finish();
-                prefab
-                    .transforms.insert(value, transform);
-                prefab_handle = Some(value);
+            .and_modify(|(_, prefab)| {
+                prefab.transforms.insert(
+                    prefab.transforms.len(),
+                    InstanceTransform {
+                        position: position.clone(),
+                        rotation: rotation.clone(),
+                    },
+                );
+                // Todo: put in one method
+                prefab.update_buffer(&self.device);
+                instance_handle = Some(PrefabInstance {
+                    name: prefab_name.to_string(),
+                    hash: prefab.transforms.len() - 1,
+                    position: position.clone(),
+                    rotation: rotation.clone(),
+                });
             });
 
-        prefab_handle
+        instance_handle
     }
 
-    pub fn prefab_instance(
-        &mut self,
-        prefab_name: &str,
-        instance_handle: u64,
-    ) -> Option<&mut InstanceTransform> {
-        if let Some(prefab) = self.prefabs.get_mut(prefab_name) {
-            return prefab.transforms.get_mut(&instance_handle);
-        }
-
-        None
+    pub fn update_prefab_instance(&mut self, instance: &PrefabInstance) {
+        self.prefabs
+            .entry(instance.name.clone())
+            .and_modify(|(_, prefab)| {
+                prefab
+                    .transforms
+                    .entry(instance.hash)
+                    .and_modify(|instance_transform| {
+                        instance_transform.position = instance.position;
+                        instance_transform.rotation = instance.rotation;
+                    });
+                prefab.update_buffer(&self.device);
+            });
     }
 
-    pub fn destroy_instance(&mut self, prefab_name: &str, instance_handle: u64) {
-        info!("Destroying instance {instance_handle} of {prefab_name}");
-        if let Some(prefab) = self.prefabs.get_mut(prefab_name) {
-            prefab.transforms.remove(&instance_handle);
-        }
-    }
-
-    pub fn camera(&mut self) -> &mut Camera {
-        &mut self.camera_state.camera
+    pub fn delete_prefab_instance(&mut self, _instance_handle: &PrefabInstance) {
+        todo!()
     }
 }

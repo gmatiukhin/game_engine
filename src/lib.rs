@@ -4,6 +4,7 @@ use winit::event_loop::ControlFlow;
 use winit::{event::Event, event_loop::EventLoop, window::WindowBuilder};
 
 pub extern crate cgmath;
+extern crate core;
 
 pub mod input;
 use input::InputHandler;
@@ -53,7 +54,6 @@ impl Game {
             go.start(&mut renderer);
         }
         renderer.update_components();
-        renderer.init_pipelines();
 
         let mut last_time = std::time::Instant::now();
         event_loop.run(move |event, _, control_flow| {
