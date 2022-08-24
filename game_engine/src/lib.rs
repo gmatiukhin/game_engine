@@ -22,9 +22,9 @@ pub struct Game {
 }
 
 impl Game {
-    pub fn new(title: String) -> Self {
+    pub fn new(title: &str) -> Self {
         Self {
-            title,
+            title: title.to_string(),
             game_objects: vec![],
         }
     }

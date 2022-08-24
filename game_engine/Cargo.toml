@@ -12,6 +12,7 @@ pollster = "0.2"
 bytemuck = { version = "1.10", features = [ "derive" ] }
 anyhow = "1.0"
 cgmath = "0.18"
+gui = { path = "../gui"}
 
 [dependencies.image]
 version = "0.24"
