@@ -55,7 +55,11 @@ impl Texture {
         Self::from_color(device, queue, &wgpu::Color::WHITE)
     }
 
-    pub(crate) fn from_color(device: &wgpu::Device, queue: &wgpu::Queue, color: &wgpu::Color) -> Self {
+    pub(crate) fn from_color(
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        color: &wgpu::Color,
+    ) -> Self {
         let texture_size = wgpu::Extent3d {
             width: 1,
             height: 1,
@@ -118,7 +122,12 @@ impl Texture {
         }
     }
 
-    pub(crate) fn from_image(device: &wgpu::Device, queue: &wgpu::Queue, image: &image::DynamicImage, label: &str) -> Self {
+    pub(crate) fn from_image(
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        image: &image::DynamicImage,
+        label: &str,
+    ) -> Self {
         let image = image.to_rgba8();
         let dimensions = image.dimensions();
 

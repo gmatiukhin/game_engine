@@ -13,12 +13,7 @@ use gfx::Renderer;
 
 pub trait GameObject {
     fn start(&mut self, renderer: &mut Renderer);
-    fn update(
-        &mut self,
-        renderer: &mut Renderer,
-        input_handler: &mut InputHandler,
-        dt: f32,
-    );
+    fn update(&mut self, renderer: &mut Renderer, input_handler: &mut InputHandler, dt: f32);
 }
 
 pub struct Game {
@@ -80,8 +75,7 @@ impl Game {
                     for go in &mut self.game_objects {
                         go.update(&mut renderer, &mut input_handler, dt.as_secs_f32());
                     }
-                    input_handler.reset_scroll();
-                    input_handler.reset_cursor_delta();
+                    input_handler.update_input_state();
                     renderer.update_components();
 
                     match renderer.render() {

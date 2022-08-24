@@ -10,7 +10,7 @@ pub mod camera;
 pub mod components;
 use components::*;
 
-pub mod texture;
+pub mod material;
 
 pub struct Renderer {
     screen_size: PhysicalSize<u32>,
@@ -18,7 +18,7 @@ pub struct Renderer {
     queue: wgpu::Queue,
     surface: wgpu::Surface,
     surface_config: wgpu::SurfaceConfiguration,
-    depth_texture: texture::Texture,
+    depth_texture: material::Texture,
 
     camera_state: CameraState,
     texture_bind_group_layout: wgpu::BindGroupLayout,
@@ -67,7 +67,7 @@ impl Renderer {
 
         let camera_state = CameraState::default_state(&device, &surface_config);
 
-        let depth_texture = texture::Texture::depth_texture(&device, &surface_config);
+        let depth_texture = material::Texture::depth_texture(&device, &surface_config);
 
         let texture_bind_group_layout =
             device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
@@ -107,24 +107,33 @@ impl Renderer {
     }
 
     fn default_vertex_shader_module(&self) -> wgpu::ShaderModule {
-        self.device.create_shader_module(wgpu::ShaderModuleDescriptor {
-            label: Some("mesh_vertex_shader"),
-            source: wgpu::ShaderSource::Wgsl(include_str!("./shaders/vertex_default.wgsl").into()),
-        })
+        self.device
+            .create_shader_module(wgpu::ShaderModuleDescriptor {
+                label: Some("mesh_vertex_shader"),
+                source: wgpu::ShaderSource::Wgsl(
+                    include_str!("./shaders/vertex_default.wgsl").into(),
+                ),
+            })
     }
 
     fn instance_vertex_shader_module(&self) -> wgpu::ShaderModule {
-        self.device.create_shader_module(wgpu::ShaderModuleDescriptor {
-            label: Some("instanced_vertex_shader"),
-            source: wgpu::ShaderSource::Wgsl(include_str!("./shaders/vertex_instanced.wgsl").into()),
-        })
+        self.device
+            .create_shader_module(wgpu::ShaderModuleDescriptor {
+                label: Some("instanced_vertex_shader"),
+                source: wgpu::ShaderSource::Wgsl(
+                    include_str!("./shaders/vertex_instanced.wgsl").into(),
+                ),
+            })
     }
 
     fn default_fragment_shader_module(&self) -> wgpu::ShaderModule {
-        self.device.create_shader_module(wgpu::ShaderModuleDescriptor {
-            label: Some("default_fragment_shader"),
-            source: wgpu::ShaderSource::Wgsl(include_str!("./shaders/fragment_default.wgsl").into()),
-        })
+        self.device
+            .create_shader_module(wgpu::ShaderModuleDescriptor {
+                label: Some("default_fragment_shader"),
+                source: wgpu::ShaderSource::Wgsl(
+                    include_str!("./shaders/fragment_default.wgsl").into(),
+                ),
+            })
     }
 
     fn create_pipeline(
@@ -135,52 +144,57 @@ impl Renderer {
         label: &str,
     ) -> wgpu::RenderPipeline {
         let render_pipeline_layout =
-            self.device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-                label: Some("render_pipeline_layout"),
-                bind_group_layouts: &[&self.camera_state.camera_bind_group_layout, &self.texture_bind_group_layout],
-                push_constant_ranges: &[],
-            });
+            self.device
+                .create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+                    label: Some("render_pipeline_layout"),
+                    bind_group_layouts: &[
+                        &self.camera_state.camera_bind_group_layout,
+                        &self.texture_bind_group_layout,
+                    ],
+                    push_constant_ranges: &[],
+                });
 
-        self.device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-            label: Some(label),
-            layout: Some(&render_pipeline_layout),
-            vertex: wgpu::VertexState {
-                module: &vertex_shader_module,
-                entry_point: "vs_main",
-                buffers: buffer_layouts,
-            },
-            fragment: Some(wgpu::FragmentState {
-                module: &fragment_shader_module,
-                entry_point: "fs_main",
-                targets: &[Some(wgpu::ColorTargetState {
-                    format: self.surface_config.format,
-                    blend: Some(wgpu::BlendState::PREMULTIPLIED_ALPHA_BLENDING),
-                    write_mask: wgpu::ColorWrites::all(),
-                })],
-            }),
-            primitive: wgpu::PrimitiveState {
-                topology: wgpu::PrimitiveTopology::TriangleList,
-                strip_index_format: None,
-                front_face: wgpu::FrontFace::Ccw,
-                cull_mode: Some(wgpu::Face::Back),
-                unclipped_depth: false,
-                polygon_mode: wgpu::PolygonMode::Fill,
-                conservative: false,
-            },
-            depth_stencil: Some(wgpu::DepthStencilState {
-                format: texture::Texture::DEPTH_TEXTURE_FORMAT,
-                depth_write_enabled: true,
-                depth_compare: wgpu::CompareFunction::Less,
-                stencil: Default::default(),
-                bias: Default::default(),
-            }),
-            multisample: wgpu::MultisampleState {
-                count: 1,
-                mask: !0,
-                alpha_to_coverage_enabled: false,
-            },
-            multiview: None,
-        })
+        self.device
+            .create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+                label: Some(label),
+                layout: Some(&render_pipeline_layout),
+                vertex: wgpu::VertexState {
+                    module: &vertex_shader_module,
+                    entry_point: "vs_main",
+                    buffers: buffer_layouts,
+                },
+                fragment: Some(wgpu::FragmentState {
+                    module: &fragment_shader_module,
+                    entry_point: "fs_main",
+                    targets: &[Some(wgpu::ColorTargetState {
+                        format: self.surface_config.format,
+                        blend: Some(wgpu::BlendState::PREMULTIPLIED_ALPHA_BLENDING),
+                        write_mask: wgpu::ColorWrites::all(),
+                    })],
+                }),
+                primitive: wgpu::PrimitiveState {
+                    topology: wgpu::PrimitiveTopology::TriangleList,
+                    strip_index_format: None,
+                    front_face: wgpu::FrontFace::Ccw,
+                    cull_mode: Some(wgpu::Face::Back),
+                    unclipped_depth: false,
+                    polygon_mode: wgpu::PolygonMode::Fill,
+                    conservative: false,
+                },
+                depth_stencil: Some(wgpu::DepthStencilState {
+                    format: material::Texture::DEPTH_TEXTURE_FORMAT,
+                    depth_write_enabled: true,
+                    depth_compare: wgpu::CompareFunction::Less,
+                    stencil: Default::default(),
+                    bias: Default::default(),
+                }),
+                multisample: wgpu::MultisampleState {
+                    count: 1,
+                    mask: !0,
+                    alpha_to_coverage_enabled: false,
+                },
+                multiview: None,
+            })
     }
 
     pub(crate) fn render(&self) -> anyhow::Result<(), wgpu::SurfaceError> {
@@ -250,7 +264,7 @@ impl Renderer {
             self.surface_config.height = new_size.height;
             self.surface.configure(&self.device, &self.surface_config);
             self.depth_texture =
-                texture::Texture::depth_texture(&self.device, &self.surface_config);
+                material::Texture::depth_texture(&self.device, &self.surface_config);
             self.camera_state
                 .camera
                 .resize(new_size.width, new_size.height);
@@ -285,9 +299,9 @@ impl Renderer {
     }
 
     pub fn update_model(&mut self, model: &Model) {
-        self.models.entry(model.name.clone()).and_modify(
-            |(_, m)| *m = model.buffer(&self.device, &self.queue, &self.texture_bind_group_layout)
-        );
+        self.models.entry(model.name.clone()).and_modify(|(_, m)| {
+            *m = model.buffer(&self.device, &self.queue, &self.texture_bind_group_layout)
+        });
     }
 
     pub fn delete_model(&mut self, model: Model) {
@@ -351,11 +365,11 @@ impl Renderer {
     }
 
     pub fn delete_prefab_instance(&mut self, instance: &PrefabInstance) {
-        self.prefabs.entry(instance.name.clone()).and_modify(
-            |(_, prefab)| {
+        self.prefabs
+            .entry(instance.name.clone())
+            .and_modify(|(_, prefab)| {
                 prefab.remove_instance(instance);
                 prefab.update_buffer(&self.device);
-            }
-        );
+            });
     }
 }

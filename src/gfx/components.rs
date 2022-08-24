@@ -1,4 +1,4 @@
-use crate::gfx::texture::{Material, Shader, Texture};
+use crate::gfx::material::{Material, Shader, Texture};
 use cgmath::EuclideanSpace;
 use log::info;
 use std::collections::HashMap;
@@ -49,14 +49,11 @@ impl Mesh {
     pub(crate) fn buffer(&self, device: &wgpu::Device) -> MeshBuffered {
         let v_vec_raw: Vec<VertexRaw> = self.vertices.iter().map(|el| el.into()).collect();
 
-        let vertex_buffer =
-            device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-                label: None,
-                contents: bytemuck::cast_slice(&v_vec_raw),
-                usage: wgpu::BufferUsages::VERTEX,
-            });
-
-
+        let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: None,
+            contents: bytemuck::cast_slice(&v_vec_raw),
+            usage: wgpu::BufferUsages::VERTEX,
+        });
 
         let index_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: None,
@@ -184,7 +181,7 @@ impl Prefab {
     pub(crate) fn add_instance(
         &mut self,
         position: &cgmath::Point3<f32>,
-        rotation: &cgmath::Quaternion<f32>
+        rotation: &cgmath::Quaternion<f32>,
     ) -> PrefabInstance {
         self.transforms.insert(
             self.transforms.len(),
@@ -201,21 +198,20 @@ impl Prefab {
             rotation: rotation.clone(),
         }
     }
-    
+
     pub(crate) fn update_instance(&mut self, instance: &PrefabInstance) {
-        self
-            .transforms
+        self.transforms
             .entry(instance.hash)
             .and_modify(|instance_transform| {
                 instance_transform.position = instance.position;
                 instance_transform.rotation = instance.rotation;
             });
     }
-    
+
     pub(crate) fn remove_instance(&mut self, instance: &PrefabInstance) {
         self.transforms.remove(&instance.hash);
     }
-    
+
     pub(crate) fn update_buffer(&mut self, device: &wgpu::Device) {
         info!("Updating buffer of {}", self.name);
         let instance_data: Vec<_> = self
