@@ -4,7 +4,7 @@ use winit::event_loop::ControlFlow;
 use winit::{event::Event, event_loop::EventLoop, window::WindowBuilder};
 
 pub extern crate cgmath;
-extern crate core;
+pub extern crate image;
 
 pub mod input;
 use input::InputHandler;
@@ -17,7 +17,7 @@ pub trait GameObject {
         &mut self,
         renderer: &mut Renderer,
         input_handler: &mut InputHandler,
-        dt: std::time::Duration,
+        dt: f32,
     );
 }
 
@@ -78,7 +78,7 @@ impl Game {
                     last_time = now;
 
                     for go in &mut self.game_objects {
-                        go.update(&mut renderer, &mut input_handler, dt);
+                        go.update(&mut renderer, &mut input_handler, dt.as_secs_f32());
                     }
                     input_handler.reset_scroll();
                     input_handler.reset_cursor_delta();
