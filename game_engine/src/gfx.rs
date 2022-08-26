@@ -25,6 +25,7 @@ pub struct Renderer {
 
     models: HashMap<String, (wgpu::RenderPipeline, ModelBuffered)>,
     prefabs: HashMap<String, (wgpu::RenderPipeline, Prefab)>,
+    gui_renderer: gui::GUIRenderer,
 }
 
 impl Renderer {
@@ -92,6 +93,8 @@ impl Renderer {
                 ],
             });
 
+        let gui_renderer = gui::GUIRenderer::new(&device, surface_config.format);
+
         Self {
             screen_size,
             device,
@@ -103,6 +106,7 @@ impl Renderer {
             texture_bind_group_layout,
             models: HashMap::new(),
             prefabs: HashMap::new(),
+            gui_renderer,
         }
     }
 
@@ -168,7 +172,9 @@ impl Renderer {
                     entry_point: "fs_main",
                     targets: &[Some(wgpu::ColorTargetState {
                         format: self.surface_config.format,
-                        blend: Some(wgpu::BlendState::PREMULTIPLIED_ALPHA_BLENDING),
+                        // In order to have transparency you should implement Order Independent Transparency algorithm
+                        // or sort all of the objects
+                        blend: Some(wgpu::BlendState::REPLACE),
                         write_mask: wgpu::ColorWrites::all(),
                     })],
                 }),
@@ -246,6 +252,8 @@ impl Renderer {
                 prefab.render(&mut render_pass);
             }
         }
+
+        self.gui_renderer.render(&mut command_encoder, &view);
 
         self.queue.submit(std::iter::once(command_encoder.finish()));
         surface_texture.present();
