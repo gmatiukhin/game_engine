@@ -11,6 +11,7 @@ pub mod components;
 use components::*;
 
 pub mod material;
+mod gui;
 
 pub struct Renderer {
     screen_size: PhysicalSize<u32>,
@@ -93,7 +94,7 @@ impl Renderer {
                 ],
             });
 
-        let gui_renderer = gui::GUIRenderer::new(&device, surface_config.format);
+        let gui_renderer = gui::GUIRenderer::new(&device, &surface_config);
 
         Self {
             screen_size,
