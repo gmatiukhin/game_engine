@@ -11,6 +11,8 @@ use input::InputHandler;
 pub mod gfx;
 use gfx::Renderer;
 
+pub mod util;
+
 pub trait GameObject {
     fn start(&mut self, renderer: &mut Renderer);
     fn update(&mut self, renderer: &mut Renderer, input_handler: &mut InputHandler, dt: f32);

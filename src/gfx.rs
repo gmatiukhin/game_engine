@@ -10,8 +10,8 @@ pub mod camera;
 pub mod components;
 use components::*;
 
-pub mod material;
 mod gui;
+pub mod material;
 
 pub struct Renderer {
     screen_size: PhysicalSize<u32>,
@@ -254,7 +254,8 @@ impl Renderer {
             }
         }
 
-        self.gui_renderer.render(&mut command_encoder, &view);
+        self.gui_renderer
+            .render(&mut command_encoder, &view, &self.device);
 
         self.queue.submit(std::iter::once(command_encoder.finish()));
         surface_texture.present();
@@ -277,11 +278,13 @@ impl Renderer {
             self.camera_state
                 .camera
                 .resize(new_size.width, new_size.height);
+            self.gui_renderer.resize(self.screen_size);
         }
     }
 
     pub(crate) fn update_components(&mut self) {
         self.camera_state.update(&self.queue);
+        self.gui_renderer.update(&self.queue);
     }
 
     pub fn camera(&mut self) -> &mut Camera {
