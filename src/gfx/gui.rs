@@ -106,36 +106,42 @@ impl GUIRenderer {
         };
         
         let panels = {
-            let panel_relative = GUIPanel {
-                position: GUITransform::Relative(0.5, 0.5),
-                dimensions: GUITransform::Relative(0.25, 0.25),
-                color: wgpu::Color::RED,
-            };
-
-            let panel_absolute = GUIPanel {
-                position: GUITransform::Absolute(100, 100),
-                dimensions: GUITransform::Absolute(100, 100),
+            let child1 = GUIPanel {
+                position: GUITransform::Relative(0.2, 0.1),
+                dimensions: GUITransform::Relative(0.6, 0.1),
                 color: wgpu::Color::GREEN,
+                children: vec![]
             };
 
-            let panel_relative_pos_absolute_size = GUIPanel {
-                position: GUITransform::Relative(0.75, 0.75),
-                dimensions: GUITransform::Absolute(50, 80),
-                color: wgpu::Color::BLUE,
-            };
-
-            let panel_absolute_pos_relative_size = GUIPanel {
-                position: GUITransform::Absolute(100, 300),
-                dimensions: GUITransform::Relative(0.25, 0.25),
+            let child21 = GUIPanel {
+                position: GUITransform::Relative(0.15, 0.1),
+                dimensions: GUITransform::Relative(0.7, 0.35),
                 color: wgpu::Color::WHITE,
+                children: vec![]
+            };
+
+            let child22 = GUIPanel {
+                position: GUITransform::Relative(0.1, 0.55),
+                dimensions: GUITransform::Relative(0.8, 0.35),
+                color: wgpu::Color::WHITE,
+                children: vec![]
+            };
+
+            let child2 = GUIPanel {
+                position: GUITransform::Relative(0.1, 0.3),
+                dimensions: GUITransform::Relative(0.8, 0.5),
+                color: wgpu::Color::BLUE,
+                children: vec![child21, child22]
+            };
+
+            let top_panel = GUIPanel {
+                position: GUITransform::Absolute(10, 10),
+                dimensions: GUITransform::Relative(0.3, 0.8),
+                color: wgpu::Color::RED,
+                children: vec![child1, child2]
             };
             
-            vec![
-                panel_relative,
-                panel_absolute,
-                panel_relative_pos_absolute_size,
-                panel_absolute_pos_relative_size,
-            ]
+            vec![top_panel]
         };
 
         Self {
@@ -160,7 +166,8 @@ impl GUIRenderer {
             .map(|panel| {
                 panel.buffer(
                     device,
-                    cgmath::Vector2::new(self.screen_size.width, self.screen_size.height),
+                    (0.0, 0.0).into(),
+                    (self.screen_size.width as f32, self.screen_size.height as f32).into(),
                 )
             })
             .collect::<Vec<GUIPanelBuffered>>();
@@ -210,7 +217,7 @@ impl GUIRenderer {
 enum GUITransform {
     /// Pixel values
     Absolute(u32, u32),
-    /// As a percentage of the screen
+    /// As a percentage of the corresponding parent transform
     Relative(f32, f32),
 }
 
@@ -219,27 +226,33 @@ struct GUIPanel {
     position: GUITransform,
     dimensions: GUITransform,
     color: wgpu::Color,
+
+    children: Vec<GUIPanel>,
 }
 
 impl GUIPanel {
     fn buffer(
         &self,
         device: &wgpu::Device,
-        screen_dimensions: cgmath::Vector2<u32>,
+        parent_anchor: cgmath::Vector2<f32>,
+        parent_dimensions: cgmath::Vector2<f32>,
     ) -> GUIPanelBuffered {
         let (left, top) = match self.position {
-            GUITransform::Absolute(x, y) => (x as f32, y as f32),
+            GUITransform::Absolute(x, y) => (
+                parent_anchor.x + x as f32,
+                parent_anchor.y + y as f32
+            ),
             GUITransform::Relative(percentage_x, percentage_y) => (
-                0.0 + screen_dimensions.x as f32 * percentage_x,
-                0.0 + screen_dimensions.y as f32 * percentage_y,
+                parent_anchor.x + (0.0 + parent_dimensions.x as f32 * percentage_x),
+                parent_anchor.y + (0.0 + parent_dimensions.y as f32 * percentage_y),
             ),
         };
 
         let (right, bottom) = match self.dimensions {
             GUITransform::Absolute(width, height) => (left + width as f32, top + height as f32),
             GUITransform::Relative(percentage_x, percentage_y) => (
-                left + (0.0 + screen_dimensions.x as f32 * percentage_x),
-                top + (0.0 + screen_dimensions.y as f32 * percentage_y),
+                left + (0.0 + parent_dimensions.x as f32 * percentage_x),
+                top + (0.0 + parent_dimensions.y as f32 * percentage_y),
             ),
         };
 
@@ -289,10 +302,13 @@ impl GUIPanel {
             usage: wgpu::BufferUsages::INDEX,
         });
 
+        let buffered_children = self.children.iter().map(|child| child.buffer(device, (left, top).into(), (right - left, bottom - top).into())).collect::<Vec<_>>();
+
         GUIPanelBuffered {
             vertex_buffer,
             index_buffer,
             indices_len: indices.len() as u32,
+            children: buffered_children
         }
     }
 }
@@ -301,6 +317,8 @@ struct GUIPanelBuffered {
     vertex_buffer: wgpu::Buffer,
     index_buffer: wgpu::Buffer,
     indices_len: u32,
+
+    children: Vec<GUIPanelBuffered>,
 }
 
 impl GUIPanelBuffered {
@@ -308,6 +326,10 @@ impl GUIPanelBuffered {
         render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
         render_pass.set_index_buffer(self.index_buffer.slice(..), wgpu::IndexFormat::Uint32);
         render_pass.draw_indexed(0..self.indices_len, 0, 0..1);
+
+        for child in &self.children {
+            child.render(render_pass);
+        }
     }
 }
 
