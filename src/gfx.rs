@@ -71,28 +71,8 @@ impl Renderer {
 
         let depth_texture = material::Texture::depth_texture(&device, &surface_config);
 
-        let texture_bind_group_layout =
-            device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-                label: Some("texture_bind_group_layout"),
-                entries: &[
-                    wgpu::BindGroupLayoutEntry {
-                        binding: 0,
-                        visibility: wgpu::ShaderStages::FRAGMENT,
-                        ty: wgpu::BindingType::Texture {
-                            sample_type: wgpu::TextureSampleType::Float { filterable: true },
-                            view_dimension: wgpu::TextureViewDimension::D2,
-                            multisampled: false,
-                        },
-                        count: None,
-                    },
-                    wgpu::BindGroupLayoutEntry {
-                        binding: 1,
-                        visibility: wgpu::ShaderStages::FRAGMENT,
-                        ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
-                        count: None,
-                    },
-                ],
-            });
+        let texture_bind_group_layout = device
+            .create_bind_group_layout(&material::Texture::TEXTURE_BIND_GROUP_LAYOUT_DESCRIPTOR);
 
         let gui_renderer = gui::GUIRenderer::new(&device, &surface_config);
 
@@ -254,8 +234,7 @@ impl Renderer {
             }
         }
 
-        self.gui_renderer
-            .render(&mut command_encoder, &view, &self.device);
+        self.gui_renderer.render(&mut command_encoder, &view);
 
         self.queue.submit(std::iter::once(command_encoder.finish()));
         surface_texture.present();
@@ -284,7 +263,7 @@ impl Renderer {
 
     pub(crate) fn update_components(&mut self) {
         self.camera_state.update(&self.queue);
-        self.gui_renderer.update(&self.queue);
+        self.gui_renderer.update(&self.device, &self.queue);
     }
 
     pub fn camera(&mut self) -> &mut Camera {

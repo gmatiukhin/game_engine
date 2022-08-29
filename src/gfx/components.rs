@@ -8,6 +8,7 @@ use wgpu::util::DeviceExt;
 #[derive(Debug)]
 pub struct Vertex {
     pub position: cgmath::Point3<f32>,
+    /// In wgpu's coordinate system UV origin is situated in the top left corner
     pub texture_coordinates: [f32; 2],
 }
 

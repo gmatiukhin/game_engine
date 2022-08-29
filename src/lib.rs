@@ -4,6 +4,7 @@ use winit::event_loop::ControlFlow;
 use winit::{event::Event, event_loop::EventLoop, window::WindowBuilder};
 
 pub extern crate cgmath;
+extern crate core;
 pub extern crate image;
 
 pub mod input;
@@ -11,6 +12,7 @@ use input::InputHandler;
 pub mod gfx;
 use gfx::Renderer;
 
+mod text;
 pub mod util;
 
 pub trait GameObject {

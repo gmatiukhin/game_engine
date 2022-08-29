@@ -12,6 +12,8 @@ pollster = "0.2"
 bytemuck = { version = "1.12.1", features = [ "derive" ] }
 anyhow = "1.0"
 cgmath = "0.18"
+ab_glyph = "0.2.16"
+
 [dependencies.image]
 version = "0.24"
 default-features = false
