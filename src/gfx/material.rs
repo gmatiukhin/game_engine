@@ -1,3 +1,5 @@
+use ab_glyph::Font;
+
 pub struct Texture {
     pub(crate) _texture: wgpu::Texture,
     pub(crate) view: wgpu::TextureView,
@@ -210,40 +212,42 @@ impl Texture {
         }
     }
 
-    pub(crate) fn from_text(device: &wgpu::Device, queue: &wgpu::Queue, text: &String, max_width: f32) -> Self {
+    pub(crate) fn from_text(
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        text: &String,
+        max_width: f32,
+    ) -> Self {
         use ab_glyph::Font;
 
         let font = ab_glyph::FontRef::try_from_slice(include_bytes!(
             "../../res/fonts/pixel/Pixel NES.otf"
         ))
-            .unwrap();
-        let scale = 40.0;
+        .unwrap();
+        let scale = 100.0;
         let scaled_font = font.as_scaled(ab_glyph::PxScale::from(scale));
-        let glyphs = crate::text::layout_paragraph(scaled_font, (0.0, 0.0).into(), max_width, &text);
-        // println!("{:#?}", glyphs);
-        // std::process::exit(0);
-        let (data, width, height) = crate::text::parse(&font, glyphs, scale);
+        let glyphs =
+            crate::text::layout_paragraph(scaled_font, (0.0, 0.0).into(), max_width, &text);
+        let (data, width, height) = crate::text::parse(&scaled_font, glyphs);
 
         let mut image: image::RgbaImage = image::ImageBuffer::new(width as u32, height as u32);
 
         for (i, v) in data.iter().enumerate() {
             let x = i as u32 % image.width();
-            let x = if x >= image.width() { image.width() - 1} else { x };
+            let x = x.min(image.width() - 1);
+
             let y = (i as u32 - x) / image.width();
-            let y = if y >= image.height() { image.height() - 1} else { y };
-                image.put_pixel(
-                    x, y,
-                    image::Rgba([
-                        (v * 255.0) as u8,
-                        (v * 255.0) as u8,
-                        (v * 255.0) as u8,
-                        255,
-                    ]));
-        };
+            let y = y.min(image.height() - 1);
+            image.put_pixel(
+                x,
+                y,
+                image::Rgba([(v * 255.0) as u8, (v * 255.0) as u8, (v * 255.0) as u8, 255]),
+            );
+        }
 
         let texture_size = wgpu::Extent3d {
-            width: width,
-            height: height,
+            width,
+            height,
             depth_or_array_layers: 1,
         };
 

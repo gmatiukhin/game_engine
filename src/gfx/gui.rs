@@ -125,7 +125,10 @@ impl GUIRenderer {
             active: true,
             position: GUITransform::Relative(0.1, 0.1),
             dimensions: GUITransform::Relative(0.8, 0.3),
-            content: GUIPanelContent::Image(crate::gfx::material::Image { name: "stone_brick".to_string(), file: image })
+            content: GUIPanelContent::Image(crate::gfx::material::Image {
+                name: "stone_brick".to_string(),
+                file: image,
+            }),
         };
 
         let panel_text = GUIPanel {
@@ -265,18 +268,31 @@ impl GUIPanel {
                 (parent_anchor.x + x as f32, parent_anchor.y + y as f32)
             }
             GUITransform::Relative(percentage_x, percentage_y) => (
-                parent_anchor.x + (0.0 + parent_dimensions.x as f32 * percentage_x),
-                parent_anchor.y + (0.0 + parent_dimensions.y as f32 * percentage_y),
+                parent_anchor.x + parent_dimensions.x as f32 * percentage_x,
+                parent_anchor.y + parent_dimensions.y as f32 * percentage_y,
             ),
         };
 
         let (right, bottom) = match self.dimensions {
             GUITransform::Absolute(width, height) => (left + width as f32, top + height as f32),
             GUITransform::Relative(percentage_x, percentage_y) => (
-                left + (0.0 + parent_dimensions.x as f32 * percentage_x),
-                top + (0.0 + parent_dimensions.y as f32 * percentage_y),
+                left + parent_dimensions.x as f32 * percentage_x,
+                top + parent_dimensions.y as f32 * percentage_y,
             ),
         };
+
+        let left = left
+            .max(parent_anchor.x)
+            .min(parent_dimensions.x + parent_anchor.x);
+        let top = top
+            .max(parent_anchor.y)
+            .min(parent_dimensions.y + parent_anchor.y);
+        let right = right
+            .max(parent_anchor.x)
+            .min(parent_dimensions.x + parent_anchor.x);
+        let bottom = bottom
+            .max(parent_anchor.y)
+            .min(parent_dimensions.y + parent_anchor.y);
 
         let vertices = vec![
             // Top left
@@ -322,7 +338,7 @@ impl GUIPanel {
             ),
             GUIPanelContent::Text(text) => (
                 crate::gfx::material::Texture::from_text(device, queue, text, right - left),
-                vec![]
+                vec![],
             ),
             GUIPanelContent::Elements(color, children) => {
                 let mut buffered_children: Vec<GUIPanelBuffered> = vec![];
