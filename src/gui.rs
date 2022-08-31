@@ -128,6 +128,7 @@ impl GUIRenderer {
                 text: "Hello, World!".to_string(),
                 color: wgpu::Color::GREEN,
                 scale: 40.0,
+                font: crate::text::FontParameters::Default,
             }),
         };
 

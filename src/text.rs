@@ -1,14 +1,15 @@
 use ab_glyph::*;
 
 pub(crate) struct TextRasterizer {
-    font: FontRef<'static>,
+    default_font: FontRef<'static>,
 }
 
 impl TextRasterizer {
     pub(crate) fn new() -> Self {
-        let font = FontRef::try_from_slice(include_bytes!("../res/fonts/HoneyRoom.ttf")).unwrap();
+        let default_font =
+            FontRef::try_from_slice(include_bytes!("../res/fonts/HoneyRoom.ttf")).unwrap();
 
-        Self { font }
+        Self { default_font }
     }
 
     pub(crate) fn get_rasterized_data_from_text(
@@ -17,17 +18,34 @@ impl TextRasterizer {
         width: u32,
         height: u32,
     ) -> Vec<u8> {
-        if let Some(px_scale) = self.font.pt_to_px_scale(text.scale) {
-            let scaled_font = self.font.as_scaled(px_scale);
-            let glyphs = self.layout_paragraph(&scaled_font, (0.0, 0.0).into(), width, &text.text);
-            self.rasterize(&scaled_font, glyphs, width, height, &text.color)
+        if let FontParameters::Custom(data) = text.font {
+            if let Ok(font) = FontRef::try_from_slice(data) {
+                if let Some(px_scale) = self.default_font.pt_to_px_scale(text.scale) {
+                    let scaled_font = font.as_scaled(px_scale);
+                    return Self::get_data(&scaled_font, text, width, height);
+                }
+            }
         } else {
-            vec![0; width as usize * 4 * height as usize]
+            if let Some(px_scale) = self.default_font.pt_to_px_scale(text.scale) {
+                let scaled_font = self.default_font.as_scaled(px_scale);
+                return Self::get_data(&scaled_font, text, width, height);
+            }
         }
+
+        vec![0; width as usize * 4 * height as usize]
+    }
+
+    fn get_data(
+        scaled_font: &PxScaleFont<&FontRef>,
+        text: &TextParameters,
+        width: u32,
+        height: u32,
+    ) -> Vec<u8> {
+        let glyphs = Self::layout_paragraph(&scaled_font, (0.0, 0.0).into(), width, &text.text);
+        Self::rasterize(&scaled_font, glyphs, width, height, &text.color)
     }
 
     fn layout_paragraph(
-        &self,
         scaled_font: &PxScaleFont<&FontRef>,
         start_position: Point,
         width: u32,
@@ -63,7 +81,6 @@ impl TextRasterizer {
     }
 
     fn rasterize(
-        &self,
         scaled_font: &PxScaleFont<&FontRef>,
         glyphs: Vec<Glyph>,
         width: u32,
@@ -96,9 +113,15 @@ impl TextRasterizer {
     }
 }
 
+pub enum FontParameters {
+    Default,
+    Custom(&'static [u8]),
+}
+
 pub struct TextParameters {
     pub text: String,
     pub color: wgpu::Color,
     /// Text scale in points
     pub scale: f32,
+    pub font: FontParameters,
 }
