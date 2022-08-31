@@ -1,24 +1,23 @@
 use log::info;
 use std::collections::HashMap;
+use std::rc::Rc;
 use winit::dpi::PhysicalSize;
-use winit::window::Window;
 
 use crate::gfx::camera::{Camera, CameraState};
 pub use wgpu::Color;
 
 pub mod camera;
 pub mod components;
-use crate::gui;
 use components::*;
 
 pub mod material;
 
-pub struct Renderer {
-    screen_size: PhysicalSize<u32>,
-    device: wgpu::Device,
-    queue: wgpu::Queue,
-    surface: wgpu::Surface,
-    surface_config: wgpu::SurfaceConfiguration,
+pub struct Renderer3D {
+    device: Rc<wgpu::Device>,
+    queue: Rc<wgpu::Queue>,
+    // surface_config: wgpu::SurfaceConfiguration,
+    surface_format: wgpu::TextureFormat,
+
     depth_texture: material::Texture,
 
     camera_state: CameraState,
@@ -26,46 +25,15 @@ pub struct Renderer {
 
     models: HashMap<String, (wgpu::RenderPipeline, ModelBuffered)>,
     prefabs: HashMap<String, (wgpu::RenderPipeline, Prefab)>,
-    gui_renderer: gui::GUIRenderer,
 }
 
-impl Renderer {
-    pub(crate) async fn new(window: &Window) -> Self {
-        info!("Creating Renderer");
-
-        let instance = wgpu::Instance::new(wgpu::Backends::all());
-        let surface = unsafe { instance.create_surface(&window) };
-        let adapter = instance
-            .request_adapter(&wgpu::RequestAdapterOptions {
-                power_preference: Default::default(),
-                force_fallback_adapter: false,
-                compatible_surface: Some(&surface),
-            })
-            .await
-            .unwrap();
-
-        let (device, queue) = adapter
-            .request_device(
-                &wgpu::DeviceDescriptor {
-                    label: Some("Main device"),
-                    features: Default::default(),
-                    limits: Default::default(),
-                },
-                None,
-            )
-            .await
-            .unwrap();
-
-        let screen_size = window.inner_size();
-        let surface_config = wgpu::SurfaceConfiguration {
-            usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
-            format: surface.get_supported_formats(&adapter)[0],
-            width: screen_size.width,
-            height: screen_size.height,
-            present_mode: wgpu::PresentMode::Fifo,
-        };
-
-        surface.configure(&device, &surface_config);
+impl Renderer3D {
+    pub(crate) fn new(
+        device: Rc<wgpu::Device>,
+        queue: Rc<wgpu::Queue>,
+        surface_config: &wgpu::SurfaceConfiguration,
+    ) -> Self {
+        info!("Creating Renderer3D");
 
         let camera_state = CameraState::default_state(&device, &surface_config);
 
@@ -74,20 +42,15 @@ impl Renderer {
         let texture_bind_group_layout = device
             .create_bind_group_layout(&material::Texture::TEXTURE_BIND_GROUP_LAYOUT_DESCRIPTOR);
 
-        let gui_renderer = gui::GUIRenderer::new(&device, &surface_config);
-
         Self {
-            screen_size,
             device,
             queue,
-            surface,
-            surface_config,
+            surface_format: surface_config.format,
             depth_texture,
             camera_state,
             texture_bind_group_layout,
             models: HashMap::new(),
             prefabs: HashMap::new(),
-            gui_renderer,
         }
     }
 
@@ -152,7 +115,7 @@ impl Renderer {
                     module: &fragment_shader_module,
                     entry_point: "fs_main",
                     targets: &[Some(wgpu::ColorTargetState {
-                        format: self.surface_config.format,
+                        format: self.surface_format,
                         // In order to have transparency you should implement Order Independent Transparency algorithm
                         // or sort all of the objects
                         blend: Some(wgpu::BlendState::REPLACE),
@@ -184,87 +147,61 @@ impl Renderer {
             })
     }
 
-    pub(crate) fn render(&self) -> anyhow::Result<(), wgpu::SurfaceError> {
-        let surface_texture = self.surface.get_current_texture()?;
-        let view = surface_texture
-            .texture
-            .create_view(&wgpu::TextureViewDescriptor::default());
-
-        let mut command_encoder =
-            self.device
-                .create_command_encoder(&wgpu::CommandEncoderDescriptor {
-                    label: Some("render_pass_encoder"),
-                });
-
-        {
-            let mut render_pass = command_encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                label: Some("render_pass"),
-                color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                    view: &view,
-                    resolve_target: None,
-                    ops: wgpu::Operations {
-                        load: wgpu::LoadOp::Clear(Color {
-                            r: 0.1,
-                            g: 0.2,
-                            b: 0.3,
-                            a: 1.0,
-                        }),
-                        store: true,
-                    },
-                })],
-                depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
-                    view: &self.depth_texture.view,
-                    depth_ops: Some(wgpu::Operations {
-                        load: wgpu::LoadOp::Clear(1.0),
-                        store: true,
+    pub(crate) fn render(
+        &self,
+        command_encoder: &mut wgpu::CommandEncoder,
+        view: &wgpu::TextureView,
+    ) {
+        let mut render_pass = command_encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+            label: Some("render_pass"),
+            color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                view: &view,
+                resolve_target: None,
+                ops: wgpu::Operations {
+                    load: wgpu::LoadOp::Clear(Color {
+                        r: 0.1,
+                        g: 0.2,
+                        b: 0.3,
+                        a: 1.0,
                     }),
-                    stencil_ops: None,
+                    store: true,
+                },
+            })],
+            depth_stencil_attachment: Some(wgpu::RenderPassDepthStencilAttachment {
+                view: &self.depth_texture.view,
+                depth_ops: Some(wgpu::Operations {
+                    load: wgpu::LoadOp::Clear(1.0),
+                    store: true,
                 }),
-            });
-            render_pass.set_bind_group(0, &self.camera_state.camera_bind_group, &[]);
+                stencil_ops: None,
+            }),
+        });
+        render_pass.set_bind_group(0, &self.camera_state.camera_bind_group, &[]);
 
-            for (_, (pipeline, model)) in &self.models {
-                render_pass.set_pipeline(pipeline);
-                model.render(&mut render_pass, 0..1);
-            }
-
-            for (_, (pipeline, prefab)) in &self.prefabs {
-                render_pass.set_pipeline(pipeline);
-                prefab.render(&mut render_pass);
-            }
+        for (_, (pipeline, model)) in &self.models {
+            render_pass.set_pipeline(pipeline);
+            model.render(&mut render_pass, 0..1);
         }
 
-        self.gui_renderer.render(&mut command_encoder, &view);
-
-        self.queue.submit(std::iter::once(command_encoder.finish()));
-        surface_texture.present();
-
-        Ok(())
-    }
-
-    pub(crate) fn reload_view(&mut self) {
-        self.resize(self.screen_size);
-    }
-
-    pub(crate) fn resize(&mut self, new_size: PhysicalSize<u32>) {
-        if new_size.width > 0 && new_size.height > 0 {
-            let previous_size = self.screen_size;
-            self.screen_size = new_size;
-            self.surface_config.width = new_size.width;
-            self.surface_config.height = new_size.height;
-            self.surface.configure(&self.device, &self.surface_config);
-            self.depth_texture =
-                material::Texture::depth_texture(&self.device, &self.surface_config);
-            self.camera_state
-                .camera
-                .resize(new_size.width, new_size.height);
-            self.gui_renderer.resize(self.screen_size);
+        for (_, (pipeline, prefab)) in &self.prefabs {
+            render_pass.set_pipeline(pipeline);
+            prefab.render(&mut render_pass);
         }
     }
 
-    pub(crate) fn update_components(&mut self) {
+    pub(crate) fn resize(
+        &mut self,
+        new_size: PhysicalSize<u32>,
+        surface_config: &wgpu::SurfaceConfiguration,
+    ) {
+        self.depth_texture = material::Texture::depth_texture(&self.device, &surface_config);
+        self.camera_state
+            .camera
+            .resize(new_size.width, new_size.height);
+    }
+
+    pub(crate) fn update(&mut self) {
         self.camera_state.update(&self.queue);
-        self.gui_renderer.update(&self.device, &self.queue);
     }
 
     pub fn camera(&mut self) -> &mut Camera {
@@ -272,7 +209,7 @@ impl Renderer {
     }
 }
 
-impl Renderer {
+impl Renderer3D {
     pub fn add_model(&mut self, model: &Model) {
         let model = model.buffer(&self.device, &self.queue, &self.texture_bind_group_layout);
 
@@ -301,7 +238,7 @@ impl Renderer {
     }
 }
 
-impl Renderer {
+impl Renderer3D {
     pub fn add_as_prefab(&mut self, model: &Model) -> String {
         let model = model.buffer(&self.device, &self.queue, &self.texture_bind_group_layout);
 

@@ -1,8 +1,12 @@
 use crate::util::OPENGL_TO_WGPU_MATRIX;
+use std::rc::Rc;
 use wgpu::util::DeviceExt;
 use winit::dpi::PhysicalSize;
 
 pub struct GUIRenderer {
+    device: Rc<wgpu::Device>,
+    queue: Rc<wgpu::Queue>,
+
     screen_size: PhysicalSize<u32>,
     render_pipeline: wgpu::RenderPipeline,
 
@@ -18,7 +22,11 @@ pub struct GUIRenderer {
 }
 
 impl GUIRenderer {
-    pub fn new(device: &wgpu::Device, surface_config: &wgpu::SurfaceConfiguration) -> Self {
+    pub fn new(
+        device: Rc<wgpu::Device>,
+        queue: Rc<wgpu::Queue>,
+        surface_config: &wgpu::SurfaceConfiguration,
+    ) -> Self {
         let projection = OPENGL_TO_WGPU_MATRIX
             * cgmath::ortho(
                 0.0,
@@ -143,6 +151,8 @@ impl GUIRenderer {
         let text_rasterizer = crate::text::TextRasterizer::new();
 
         Self {
+            device,
+            queue,
             screen_size: (surface_config.width, surface_config.height).into(),
             render_pipeline,
             panels: vec![panel_color],
@@ -193,9 +203,9 @@ impl GUIRenderer {
             );
     }
 
-    pub(crate) fn update(&mut self, device: &wgpu::Device, queue: &wgpu::Queue) {
+    pub(crate) fn update(&mut self) {
         let projection_raw: [[f32; 4]; 4] = self.projection.into();
-        queue.write_buffer(
+        self.queue.write_buffer(
             &self.projection_buffer,
             0,
             bytemuck::cast_slice(&[projection_raw]),
@@ -206,8 +216,8 @@ impl GUIRenderer {
             .iter()
             .map(|panel| {
                 panel.buffer(
-                    device,
-                    queue,
+                    &self.device,
+                    &self.queue,
                     &self.texture_bind_group_layout,
                     &self.text_rasterizer,
                     (0.0, 0.0).into(),
