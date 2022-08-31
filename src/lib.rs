@@ -12,9 +12,9 @@ use input::InputHandler;
 pub mod gfx;
 use gfx::Renderer;
 
+mod gui;
 mod text;
 pub mod util;
-mod gui;
 
 pub trait GameObject {
     fn start(&mut self, renderer: &mut Renderer);
@@ -66,7 +66,7 @@ impl Game {
                         WindowEvent::Resized(physical_size) => {
                             renderer.resize(physical_size);
                         }
-                        WindowEvent::ScaleFactorChanged { new_inner_size, ..  } => {
+                        WindowEvent::ScaleFactorChanged { new_inner_size, .. } => {
                             renderer.resize(*new_inner_size);
                         }
                         _ => {}

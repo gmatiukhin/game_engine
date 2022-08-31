@@ -1,7 +1,6 @@
 use crate::util::OPENGL_TO_WGPU_MATRIX;
 use wgpu::util::DeviceExt;
 use winit::dpi::PhysicalSize;
-use crate::text::{TextRasterizer, TextParameters};
 
 pub struct GUIRenderer {
     screen_size: PhysicalSize<u32>,
@@ -15,7 +14,7 @@ pub struct GUIRenderer {
     projection_bind_group: wgpu::BindGroup,
     texture_bind_group_layout: wgpu::BindGroupLayout,
 
-    text_rasterizer: TextRasterizer,
+    text_rasterizer: crate::text::TextRasterizer,
 }
 
 impl GUIRenderer {
@@ -120,29 +119,15 @@ impl GUIRenderer {
             })
         };
 
-        let buffer = std::fs::read("./res/textures/stone_bricks.jpg").unwrap();
-        let image = image::load_from_memory(&buffer).unwrap();
-
-        let panel_texture = GUIPanel {
-            name: "Test texture".to_string(),
-            active: false,
-            position: GUITransform::Relative(0.1, 0.1),
-            dimensions: GUITransform::Relative(0.8, 0.3),
-            content: GUIPanelContent::Image(crate::gfx::material::Image {
-                name: "stone_brick".to_string(),
-                file: image,
-            }),
-        };
-
         let panel_text = GUIPanel {
             name: "Test text".to_string(),
             active: true,
-            position: GUITransform::Relative(0.1, 0.5),
-            dimensions: GUITransform::Relative(0.8, 0.4),
-            content: GUIPanelContent::Text(TextParameters {
-                text: "hello world, hello world, hello world".to_string(),
+            position: GUITransform::Relative(0.1, 0.1),
+            dimensions: GUITransform::Relative(0.8, 0.5),
+            content: GUIPanelContent::Text(crate::text::TextParameters {
+                text: "Hello, World!".to_string(),
                 color: wgpu::Color::GREEN,
-                scale: 20.0
+                scale: 40.0,
             }),
         };
 
@@ -151,10 +136,10 @@ impl GUIRenderer {
             active: true,
             position: GUITransform::Relative(0.01, 0.01),
             dimensions: GUITransform::Relative(0.3, 0.7),
-            content: GUIPanelContent::Elements(wgpu::Color::BLACK, vec![panel_texture, panel_text]),
+            content: GUIPanelContent::Elements(wgpu::Color::BLACK, vec![panel_text]),
         };
 
-        let text_rasterizer = TextRasterizer::new();
+        let text_rasterizer = crate::text::TextRasterizer::new();
 
         Self {
             screen_size: (surface_config.width, surface_config.height).into(),
@@ -165,7 +150,7 @@ impl GUIRenderer {
             projection_buffer,
             projection_bind_group,
             texture_bind_group_layout,
-            text_rasterizer
+            text_rasterizer,
         }
     }
 
@@ -267,7 +252,7 @@ impl GUIPanel {
         device: &wgpu::Device,
         queue: &wgpu::Queue,
         texture_bind_group_layout: &wgpu::BindGroupLayout,
-        text_rasterizer: &TextRasterizer,
+        text_rasterizer: &crate::text::TextRasterizer,
         parent_anchor: cgmath::Vector2<f32>,
         parent_dimensions: cgmath::Vector2<f32>,
     ) -> Option<GUIPanelBuffered> {
@@ -356,7 +341,7 @@ impl GUIPanel {
                     crate::gfx::material::Texture::from_text(device, queue, data, width, height),
                     vec![],
                 )
-            },
+            }
             GUIPanelContent::Elements(color, children) => {
                 let mut buffered_children: Vec<GUIPanelBuffered> = vec![];
                 for child in children {

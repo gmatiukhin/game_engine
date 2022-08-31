@@ -8,8 +8,8 @@ pub use wgpu::Color;
 
 pub mod camera;
 pub mod components;
-use components::*;
 use crate::gui;
+use components::*;
 
 pub mod material;
 

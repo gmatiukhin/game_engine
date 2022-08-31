@@ -217,7 +217,6 @@ impl Texture {
         width: u32,
         height: u32,
     ) -> Self {
-
         let texture_size = wgpu::Extent3d {
             width,
             height,
