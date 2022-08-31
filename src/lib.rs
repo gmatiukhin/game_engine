@@ -14,10 +14,10 @@ pub mod input;
 use input::InputHandler;
 pub mod gfx;
 use gfx::Renderer3D;
-use gui::GUIRenderer;
+use gui::RendererGUI;
 
-mod gui;
-mod text;
+pub mod gui;
+pub mod text;
 pub mod util;
 
 pub trait GameObject {
@@ -39,11 +39,12 @@ pub struct GraphicsEngine {
     screen_size: PhysicalSize<u32>,
 
     pub renderer_3d: Renderer3D,
-    pub renderer_gui: GUIRenderer,
+    pub renderer_gui: RendererGUI,
 }
 
 impl GraphicsEngine {
     fn new(window: &Window) -> Self {
+        info!("Creating GraphicsEngine");
         let instance = wgpu::Instance::new(wgpu::Backends::all());
         let surface = unsafe { instance.create_surface(&window) };
         let adapter = pollster::block_on(instance.request_adapter(&wgpu::RequestAdapterOptions {
@@ -78,7 +79,7 @@ impl GraphicsEngine {
         let queue = Rc::new(queue);
 
         let renderer_3d = Renderer3D::new(Rc::clone(&device), Rc::clone(&queue), &surface_config);
-        let renderer_gui = GUIRenderer::new(Rc::clone(&device), Rc::clone(&queue), &surface_config);
+        let renderer_gui = RendererGUI::new(Rc::clone(&device), Rc::clone(&queue), &surface_config);
 
         Self {
             screen_size,
@@ -169,7 +170,6 @@ impl Game {
 
         let mut last_time = std::time::Instant::now();
         event_loop.run(move |event, _, control_flow| {
-            // Capture result from the start function
             match event {
                 Event::WindowEvent { window_id, event } if window_id == window.id() => {
                     input_handler.accept_input(&event);
@@ -184,7 +184,7 @@ impl Game {
                         _ => {}
                     }
                 }
-                Event::RedrawRequested(_) => {
+                Event::RedrawRequested(window_id) if window_id == window.id() => {
                     let now = std::time::Instant::now();
                     let dt = now - last_time;
                     last_time = now;

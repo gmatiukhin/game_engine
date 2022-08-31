@@ -1,9 +1,11 @@
+use std::collections::vec_deque::VecDeque;
 use crate::util::OPENGL_TO_WGPU_MATRIX;
 use std::rc::Rc;
+use log::info;
 use wgpu::util::DeviceExt;
 use winit::dpi::PhysicalSize;
 
-pub struct GUIRenderer {
+pub struct RendererGUI {
     device: Rc<wgpu::Device>,
     queue: Rc<wgpu::Queue>,
 
@@ -21,12 +23,45 @@ pub struct GUIRenderer {
     text_rasterizer: crate::text::TextRasterizer,
 }
 
-impl GUIRenderer {
+impl RendererGUI {
+    pub fn add_top_level_panels(&mut self, mut panels: Vec<GUIPanel>) {
+        self.panels.append(&mut panels);
+    }
+
+    pub fn get_panel(&mut self, name: &str) -> Option<&mut GUIPanel> {
+        let mut panel_queue = VecDeque::new();
+        for panel in &mut self.panels {
+            panel_queue.push_back(panel);
+        }
+
+        loop {
+            if panel_queue.is_empty() {
+                break;
+            }
+            if let Some(panel) = panel_queue.pop_front() {
+                if panel.name == name {
+                    return Some(panel);
+                } else {
+                    if let GUIPanelContent::Elements(_, children) = &mut panel.content {
+                        for child in children {
+                            panel_queue.push_back(child);
+                        }
+                    }
+                }
+            }
+        }
+
+        None
+    }
+}
+
+impl RendererGUI {
     pub fn new(
         device: Rc<wgpu::Device>,
         queue: Rc<wgpu::Queue>,
         surface_config: &wgpu::SurfaceConfiguration,
     ) -> Self {
+        info!("Creating RendererGUI");
         let projection = OPENGL_TO_WGPU_MATRIX
             * cgmath::ortho(
                 0.0,
@@ -127,26 +162,7 @@ impl GUIRenderer {
             })
         };
 
-        let panel_text = GUIPanel {
-            name: "Test text".to_string(),
-            active: true,
-            position: GUITransform::Relative(0.1, 0.1),
-            dimensions: GUITransform::Relative(0.8, 0.5),
-            content: GUIPanelContent::Text(crate::text::TextParameters {
-                text: "Hello, World!".to_string(),
-                color: wgpu::Color::GREEN,
-                scale: 40.0,
-                font: crate::text::FontParameters::Default,
-            }),
-        };
 
-        let panel_color = GUIPanel {
-            name: "Test color".to_string(),
-            active: true,
-            position: GUITransform::Relative(0.01, 0.01),
-            dimensions: GUITransform::Relative(0.3, 0.7),
-            content: GUIPanelContent::Elements(wgpu::Color::BLACK, vec![panel_text]),
-        };
 
         let text_rasterizer = crate::text::TextRasterizer::new();
 
@@ -155,7 +171,7 @@ impl GUIRenderer {
             queue,
             screen_size: (surface_config.width, surface_config.height).into(),
             render_pipeline,
-            panels: vec![panel_color],
+            panels: vec![],
             buffered_panels: vec![],
             projection,
             projection_buffer,
@@ -234,27 +250,27 @@ impl GUIRenderer {
     }
 }
 
-enum GUITransform {
+pub enum GUITransform {
     /// Pixel values
     Absolute(u32, u32),
     /// As a percentage of the corresponding parent transform
     Relative(f32, f32),
 }
 
-enum GUIPanelContent {
+pub enum GUIPanelContent {
     Image(crate::gfx::material::Image),
     Text(crate::text::TextParameters),
     Elements(wgpu::Color, Vec<GUIPanel>),
 }
 
-struct GUIPanel {
-    name: String,
-    active: bool,
+pub struct GUIPanel {
+    pub name: String,
+    pub active: bool,
     /// Position of the top-left corner of the panel
-    position: GUITransform,
-    dimensions: GUITransform,
+    pub position: GUITransform,
+    pub dimensions: GUITransform,
 
-    content: GUIPanelContent,
+    pub content: GUIPanelContent,
 }
 
 impl GUIPanel {
