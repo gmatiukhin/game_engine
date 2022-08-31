@@ -9,8 +9,8 @@ pub use wgpu::Color;
 pub mod camera;
 pub mod components;
 use components::*;
+use crate::gui;
 
-mod gui;
 pub mod material;
 
 pub struct Renderer {
@@ -248,6 +248,7 @@ impl Renderer {
 
     pub(crate) fn resize(&mut self, new_size: PhysicalSize<u32>) {
         if new_size.width > 0 && new_size.height > 0 {
+            let previous_size = self.screen_size;
             self.screen_size = new_size;
             self.surface_config.width = new_size.width;
             self.surface_config.height = new_size.height;
