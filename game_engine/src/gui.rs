@@ -122,7 +122,7 @@ impl RendererGUI {
             let gui_shader_module = device.create_shader_module(wgpu::ShaderModuleDescriptor {
                 label: Some("gui_shader_module"),
                 source: wgpu::ShaderSource::Wgsl(
-                    include_str!("default_shaders/gui_shader.wgsl").into(),
+                    include_str!("../res/shaders/gui_shader.wgsl").into(),
                 ),
             });
 

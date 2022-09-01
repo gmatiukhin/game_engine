@@ -59,7 +59,7 @@ impl Renderer3D {
             .create_shader_module(wgpu::ShaderModuleDescriptor {
                 label: Some("mesh_vertex_shader"),
                 source: wgpu::ShaderSource::Wgsl(
-                    include_str!("default_shaders/vertex_default.wgsl").into(),
+                    include_str!("../res/shaders/vertex_default.wgsl").into(),
                 ),
             })
     }
@@ -69,7 +69,7 @@ impl Renderer3D {
             .create_shader_module(wgpu::ShaderModuleDescriptor {
                 label: Some("instanced_vertex_shader"),
                 source: wgpu::ShaderSource::Wgsl(
-                    include_str!("default_shaders/vertex_instanced.wgsl").into(),
+                    include_str!("../res/shaders/vertex_instanced.wgsl").into(),
                 ),
             })
     }
@@ -79,7 +79,7 @@ impl Renderer3D {
             .create_shader_module(wgpu::ShaderModuleDescriptor {
                 label: Some("default_fragment_shader"),
                 source: wgpu::ShaderSource::Wgsl(
-                    include_str!("default_shaders/fragment_default.wgsl").into(),
+                    include_str!("../res/shaders/fragment_default.wgsl").into(),
                 ),
             })
     }
