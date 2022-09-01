@@ -1,17 +1,17 @@
 #[allow(unused_imports)]
 use game_engine::{
-    GraphicsEngine,
     cgmath::{Deg, InnerSpace, One, Point3, Quaternion, Rad, Vector3},
     gfx::{
-        components::{Mesh, Model, PrefabInstance, Vertex},
-        material::{Image, Material, Shader, Texture},
-        Color, Renderer3D,
-    },
-    gui::{
-        GUIPanel, GUIPanelContent, GUITransform,
-    },
-    text::{
-        FontParameters, TextParameters
+        gfx_3d::{
+            components_3d::{Mesh, Model, PrefabInstance, Vertex},
+            Renderer3D,
+        },
+        gui::{
+            components_gui::{GUIPanel, GUIPanelContent, GUITransform},
+            text::{FontParameters, TextParameters},
+        },
+        texture::{Color, Image, Material, Shader, Texture},
+        GraphicsEngine,
     },
     image::load_from_memory,
     input::{InputHandler, MouseButton, VirtualKeyCode},
@@ -29,19 +29,19 @@ impl ObjectController {
     fn new() -> Self {
         let vertices = vec![
             Vertex {
-                position: Point3::new(0.0, 1.0, 0.0),
+                position: [0.0, 1.0, 0.0],
                 texture_coordinates: [0.0, 0.0],
             },
             Vertex {
-                position: Point3::new(0.0, 0.0, 0.0),
+                position: [0.0, 0.0, 0.0],
                 texture_coordinates: [0.0, 1.0],
             },
             Vertex {
-                position: Point3::new(1.0, 0.0, 0.0),
+                position: [1.0, 0.0, 0.0],
                 texture_coordinates: [1.0, 1.0],
             },
             Vertex {
-                position: Point3::new(1.0, 1.0, 0.0),
+                position: [1.0, 1.0, 0.0],
                 texture_coordinates: [1.0, 0.0],
             },
         ];
@@ -237,7 +237,12 @@ impl GameObject for UI {
         gui.add_top_level_panels(vec![colored_panel]);
     }
 
-    fn update(&mut self, graphics_engine: &mut GraphicsEngine, input_handler: &mut InputHandler, _dt: f32) {
+    fn update(
+        &mut self,
+        graphics_engine: &mut GraphicsEngine,
+        input_handler: &mut InputHandler,
+        _dt: f32,
+    ) {
         let gui = &mut graphics_engine.renderer_gui;
         let color_panel = gui.get_panel("Test color");
 

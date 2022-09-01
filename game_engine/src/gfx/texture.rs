@@ -1,15 +1,10 @@
-pub struct Texture {
-    pub(crate) _texture: wgpu::Texture,
-    pub(crate) view: wgpu::TextureView,
-    pub(crate) sampler: wgpu::Sampler,
-}
+pub use wgpu::Color;
 
-impl Texture {
-    pub(crate) const DEPTH_TEXTURE_FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Depth32Float;
+pub(in crate::gfx) const DEPTH_TEXTURE_FORMAT: wgpu::TextureFormat =
+    wgpu::TextureFormat::Depth32Float;
 
-    pub(crate) const TEXTURE_BIND_GROUP_LAYOUT_DESCRIPTOR: wgpu::BindGroupLayoutDescriptor<
-        'static,
-    > = wgpu::BindGroupLayoutDescriptor {
+pub(crate) const TEXTURE_BIND_GROUP_LAYOUT_DESCRIPTOR: wgpu::BindGroupLayoutDescriptor<'static> =
+    wgpu::BindGroupLayoutDescriptor {
         label: Some("texture_bind_group_layout"),
         entries: &[
             wgpu::BindGroupLayoutEntry {
@@ -31,7 +26,14 @@ impl Texture {
         ],
     };
 
-    pub(crate) fn depth_texture(
+pub struct Texture {
+    pub(crate) _texture: wgpu::Texture,
+    pub(crate) view: wgpu::TextureView,
+    pub(crate) sampler: wgpu::Sampler,
+}
+
+impl Texture {
+    pub(in crate::gfx) fn depth_texture(
         device: &wgpu::Device,
         surface_config: &wgpu::SurfaceConfiguration,
     ) -> Self {
@@ -45,7 +47,7 @@ impl Texture {
             mip_level_count: 1,
             sample_count: 1,
             dimension: wgpu::TextureDimension::D2,
-            format: Self::DEPTH_TEXTURE_FORMAT,
+            format: DEPTH_TEXTURE_FORMAT,
             usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::RENDER_ATTACHMENT,
         });
 
@@ -75,7 +77,7 @@ impl Texture {
         }
     }
 
-    pub(crate) fn default_texture(device: &wgpu::Device, queue: &wgpu::Queue) -> Self {
+    pub(in crate::gfx) fn default_texture(device: &wgpu::Device, queue: &wgpu::Queue) -> Self {
         Self::from_color(device, queue, &wgpu::Color::WHITE)
     }
 

@@ -7,7 +7,7 @@ pub(crate) struct TextRasterizer {
 impl TextRasterizer {
     pub(crate) fn new() -> Self {
         let default_font =
-            FontRef::try_from_slice(include_bytes!("../res/fonts/HoneyRoom.ttf")).unwrap();
+            FontRef::try_from_slice(include_bytes!("../../../res/fonts/HoneyRoom.ttf")).unwrap();
 
         Self { default_font }
     }

@@ -1,41 +1,26 @@
-use crate::gfx::material::{Material, Shader, Texture};
+use crate::gfx::texture::{Material, Shader, Texture};
 use cgmath::EuclideanSpace;
 use log::info;
 use std::collections::HashMap;
 use std::ops::Range;
 use wgpu::util::DeviceExt;
 
-#[derive(Debug)]
+#[repr(C)]
+#[derive(Debug, Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct Vertex {
-    pub position: cgmath::Point3<f32>,
+    pub position: [f32; 3],
     /// In wgpu's coordinate system UV origin is situated in the top left corner
     pub texture_coordinates: [f32; 2],
 }
 
-#[repr(C)]
-#[derive(Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
-pub(crate) struct VertexRaw {
-    position: [f32; 3],
-    texture_coordinates: [f32; 2],
-}
-
-impl VertexRaw {
-    pub(crate) fn format<'a>() -> wgpu::VertexBufferLayout<'a> {
+impl Vertex {
+    pub(super) fn format<'a>() -> wgpu::VertexBufferLayout<'a> {
         const ATTRIBS: [wgpu::VertexAttribute; 2] =
             wgpu::vertex_attr_array![0 => Float32x3, 1 => Float32x2];
         wgpu::VertexBufferLayout {
             array_stride: std::mem::size_of::<Self>() as wgpu::BufferAddress,
             step_mode: wgpu::VertexStepMode::Vertex,
             attributes: &ATTRIBS,
-        }
-    }
-}
-
-impl From<&Vertex> for VertexRaw {
-    fn from(v: &Vertex) -> Self {
-        Self {
-            position: [v.position.x, v.position.y, v.position.z],
-            texture_coordinates: v.texture_coordinates,
         }
     }
 }
@@ -47,12 +32,10 @@ pub struct Mesh {
 }
 
 impl Mesh {
-    pub(crate) fn buffer(&self, device: &wgpu::Device) -> MeshBuffered {
-        let v_vec_raw: Vec<VertexRaw> = self.vertices.iter().map(|el| el.into()).collect();
-
+    pub(super) fn buffer(&self, device: &wgpu::Device) -> MeshBuffered {
         let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: None,
-            contents: bytemuck::cast_slice(&v_vec_raw),
+            contents: bytemuck::cast_slice(&self.vertices),
             usage: wgpu::BufferUsages::VERTEX,
         });
 
@@ -70,15 +53,15 @@ impl Mesh {
     }
 }
 
-pub(crate) struct MeshBuffered {
-    pub(crate) vertex_buffer: wgpu::Buffer,
+pub(super) struct MeshBuffered {
+    pub(super) vertex_buffer: wgpu::Buffer,
 
-    pub(crate) indices_len: usize,
-    pub(crate) index_buffer: wgpu::Buffer,
+    pub(super) indices_len: usize,
+    pub(super) index_buffer: wgpu::Buffer,
 }
 
 impl MeshBuffered {
-    pub(crate) fn render<'a>(
+    pub(super) fn render<'a>(
         &'a self,
         render_pass: &mut wgpu::RenderPass<'a>,
         instances: Range<u32>,
@@ -107,7 +90,7 @@ impl Model {
         }
     }
 
-    pub(crate) fn buffer(
+    pub(super) fn buffer(
         &self,
         device: &wgpu::Device,
         queue: &wgpu::Queue,
@@ -152,15 +135,15 @@ impl Model {
     }
 }
 
-pub(crate) struct ModelBuffered {
-    pub(crate) name: String,
-    pub(crate) mesh: MeshBuffered,
-    pub(crate) texture_bind_group: wgpu::BindGroup,
-    pub(crate) shader_module: Option<wgpu::ShaderModule>,
+pub(super) struct ModelBuffered {
+    pub(super) name: String,
+    pub(super) mesh: MeshBuffered,
+    pub(super) texture_bind_group: wgpu::BindGroup,
+    pub(super) shader_module: Option<wgpu::ShaderModule>,
 }
 
 impl ModelBuffered {
-    pub(crate) fn render<'a>(
+    pub(super) fn render<'a>(
         &'a self,
         render_pass: &mut wgpu::RenderPass<'a>,
         instances: Range<u32>,
@@ -171,15 +154,15 @@ impl ModelBuffered {
     }
 }
 
-pub(crate) struct Prefab {
-    pub(crate) name: String,
-    pub(crate) model: ModelBuffered,
-    pub(crate) transforms: HashMap<usize, InstanceTransform>,
-    pub(crate) instance_buffer: Option<wgpu::Buffer>,
+pub(super) struct Prefab {
+    pub(super) name: String,
+    pub(super) model: ModelBuffered,
+    pub(super) transforms: HashMap<usize, InstanceTransform>,
+    pub(super) instance_buffer: Option<wgpu::Buffer>,
 }
 
 impl Prefab {
-    pub(crate) fn add_instance(
+    pub(super) fn add_instance(
         &mut self,
         position: &cgmath::Point3<f32>,
         rotation: &cgmath::Quaternion<f32>,
@@ -200,7 +183,7 @@ impl Prefab {
         }
     }
 
-    pub(crate) fn update_instance(&mut self, instance: &PrefabInstance) {
+    pub(super) fn update_instance(&mut self, instance: &PrefabInstance) {
         self.transforms
             .entry(instance.hash)
             .and_modify(|instance_transform| {
@@ -209,11 +192,11 @@ impl Prefab {
             });
     }
 
-    pub(crate) fn remove_instance(&mut self, instance: &PrefabInstance) {
+    pub(super) fn remove_instance(&mut self, instance: &PrefabInstance) {
         self.transforms.remove(&instance.hash);
     }
 
-    pub(crate) fn update_buffer(&mut self, device: &wgpu::Device) {
+    pub(super) fn update_buffer(&mut self, device: &wgpu::Device) {
         info!("Updating buffer of {}", self.name);
         let instance_data: Vec<_> = self
             .transforms
@@ -230,7 +213,7 @@ impl Prefab {
         );
     }
 
-    pub(crate) fn render<'a>(&'a self, render_pass: &mut wgpu::RenderPass<'a>) {
+    pub(super) fn render<'a>(&'a self, render_pass: &mut wgpu::RenderPass<'a>) {
         if !self.transforms.is_empty() {
             info!("Rendering prefab: {}", self.name);
             if let Some(instance_buffer) = &self.instance_buffer {
@@ -243,8 +226,8 @@ impl Prefab {
 }
 
 pub struct PrefabInstance {
-    pub name: String,
-    pub(crate) hash: usize,
+    pub(super) name: String,
+    pub(super) hash: usize,
     pub position: cgmath::Point3<f32>,
     pub rotation: cgmath::Quaternion<f32>,
 }
@@ -256,7 +239,7 @@ pub struct InstanceTransform {
 }
 
 impl InstanceTransform {
-    pub(crate) fn as_raw(&self) -> InstanceTransformRaw {
+    pub(super) fn as_raw(&self) -> InstanceTransformRaw {
         info!("Transforming Instance into InstanceTransformRaw");
         InstanceTransformRaw {
             translation: (cgmath::Matrix4::from_translation(self.position.to_vec())
@@ -268,12 +251,12 @@ impl InstanceTransform {
 
 #[repr(C)]
 #[derive(Debug, Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
-pub(crate) struct InstanceTransformRaw {
+pub(super) struct InstanceTransformRaw {
     translation: [[f32; 4]; 4],
 }
 
 impl InstanceTransformRaw {
-    pub(crate) fn format<'a>() -> wgpu::VertexBufferLayout<'a> {
+    pub(super) fn format<'a>() -> wgpu::VertexBufferLayout<'a> {
         const ATTRIBS: [wgpu::VertexAttribute; 4] = wgpu::vertex_attr_array![2 => Float32x4, 3 => Float32x4, 4 => Float32x4, 5 => Float32x4];
         wgpu::VertexBufferLayout {
             array_stride: std::mem::size_of::<Self>() as wgpu::BufferAddress,

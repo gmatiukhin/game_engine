@@ -1,9 +1,6 @@
 use log::info;
-use std::rc::Rc;
-use winit::dpi::PhysicalSize;
 use winit::event::WindowEvent;
 use winit::event_loop::ControlFlow;
-use winit::window::Window;
 use winit::{event::Event, event_loop::EventLoop, window::WindowBuilder};
 
 pub extern crate cgmath;
@@ -13,11 +10,8 @@ pub extern crate image;
 pub mod input;
 use input::InputHandler;
 pub mod gfx;
-use gfx::Renderer3D;
-use gui::RendererGUI;
+use gfx::GraphicsEngine;
 
-pub mod gui;
-pub mod text;
 pub mod util;
 
 pub trait GameObject {
@@ -28,110 +22,6 @@ pub trait GameObject {
         input_handler: &mut InputHandler,
         dt: f32,
     );
-}
-
-pub struct GraphicsEngine {
-    device: Rc<wgpu::Device>,
-    queue: Rc<wgpu::Queue>,
-    surface: wgpu::Surface,
-    surface_config: wgpu::SurfaceConfiguration,
-
-    screen_size: PhysicalSize<u32>,
-
-    pub renderer_3d: Renderer3D,
-    pub renderer_gui: RendererGUI,
-}
-
-impl GraphicsEngine {
-    fn new(window: &Window) -> Self {
-        info!("Creating GraphicsEngine");
-        let instance = wgpu::Instance::new(wgpu::Backends::all());
-        let surface = unsafe { instance.create_surface(&window) };
-        let adapter = pollster::block_on(instance.request_adapter(&wgpu::RequestAdapterOptions {
-            power_preference: Default::default(),
-            force_fallback_adapter: false,
-            compatible_surface: Some(&surface),
-        }))
-        .unwrap();
-
-        let (device, queue) = pollster::block_on(adapter.request_device(
-            &wgpu::DeviceDescriptor {
-                label: Some("Main device"),
-                features: Default::default(),
-                limits: Default::default(),
-            },
-            None,
-        ))
-        .unwrap();
-
-        let screen_size = window.inner_size();
-        let surface_config = wgpu::SurfaceConfiguration {
-            usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
-            format: surface.get_supported_formats(&adapter)[0],
-            width: screen_size.width,
-            height: screen_size.height,
-            present_mode: wgpu::PresentMode::Fifo,
-        };
-
-        surface.configure(&device, &surface_config);
-
-        let device = Rc::new(device);
-        let queue = Rc::new(queue);
-
-        let renderer_3d = Renderer3D::new(Rc::clone(&device), Rc::clone(&queue), &surface_config);
-        let renderer_gui = RendererGUI::new(Rc::clone(&device), Rc::clone(&queue), &surface_config);
-
-        Self {
-            screen_size,
-            device,
-            queue,
-            surface,
-            surface_config,
-            renderer_3d,
-            renderer_gui,
-        }
-    }
-
-    fn render(&self) -> anyhow::Result<(), wgpu::SurfaceError> {
-        let surface_texture = self.surface.get_current_texture()?;
-        let view = surface_texture
-            .texture
-            .create_view(&wgpu::TextureViewDescriptor::default());
-        let mut command_encoder =
-            self.device
-                .create_command_encoder(&wgpu::CommandEncoderDescriptor {
-                    label: Some("render_pass_encoder"),
-                });
-
-        self.renderer_3d.render(&mut command_encoder, &view);
-        self.renderer_gui.render(&mut command_encoder, &view);
-
-        self.queue.submit(std::iter::once(command_encoder.finish()));
-        surface_texture.present();
-
-        Ok(())
-    }
-
-    fn resize(&mut self, new_size: PhysicalSize<u32>) {
-        if new_size.width > 0 && new_size.height > 0 {
-            self.screen_size = new_size;
-            self.surface_config.width = new_size.width;
-            self.surface_config.height = new_size.height;
-            self.surface.configure(&self.device, &self.surface_config);
-            self.renderer_3d
-                .resize(self.screen_size, &self.surface_config);
-            self.renderer_gui.resize(self.screen_size);
-        }
-    }
-
-    pub fn reload_view(&mut self) {
-        self.resize(self.screen_size);
-    }
-
-    fn update(&mut self) {
-        self.renderer_3d.update();
-        self.renderer_gui.update();
-    }
 }
 
 pub struct Game {
