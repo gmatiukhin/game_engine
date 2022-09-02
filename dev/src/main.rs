@@ -6,8 +6,8 @@ use game_engine::{
             components_3d::{Mesh, Model, PrefabInstance, Vertex},
             Renderer3D,
         },
-        gui::{
-            components_gui::{GUIPanel, GUIPanelContent, GUITransform},
+        gfx_2d::{
+            components_2d::{GUIPanel, GUIPanelContent, GUITransform},
             text::{FontParameters, TextParameters},
         },
         texture::{Color, Image, Material, Shader, Texture},
@@ -18,6 +18,7 @@ use game_engine::{
     Game, GameObject,
 };
 use std::f32::consts::FRAC_PI_2;
+use game_engine::gfx::gfx_2d::components_2d::Surface2D;
 
 struct ObjectController {
     model: Model,
@@ -212,7 +213,7 @@ struct UI {}
 
 impl GameObject for UI {
     fn start(&mut self, graphics_engine: &mut GraphicsEngine) {
-        let gui = &mut graphics_engine.renderer_gui;
+        let gui = &mut graphics_engine.renderer_2d;
         let panel_with_text = GUIPanel {
             name: "Test text".to_string(),
             active: true,
@@ -226,15 +227,27 @@ impl GameObject for UI {
             }),
         };
 
-        let colored_panel = GUIPanel {
+        let _colored_panel = GUIPanel {
             name: "Test color".to_string(),
             active: true,
             position: GUITransform::Relative(0.01, 0.01),
             dimensions: GUITransform::Relative(0.3, 0.7),
-            content: GUIPanelContent::Elements(Color::BLACK, vec![panel_with_text]),
+            content: GUIPanelContent::Panels(Color::BLACK, vec![panel_with_text]),
         };
 
-        gui.add_top_level_panels(vec![colored_panel]);
+        let mut surface = Surface2D::new(2, 2, Color::BLUE);
+        surface.set_cell_color(0, 0, Color::BLACK);
+        surface.clear();
+
+        let graphics_panel = GUIPanel {
+            name: "Graphics panel".to_string(),
+            active: true,
+            position: GUITransform::Relative(0.0, 0.0),
+            dimensions: GUITransform::Relative(1.0, 1.0),
+            content: GUIPanelContent::Surface2D(surface),
+        };
+
+        gui.add_top_level_panels(vec![graphics_panel]);
     }
 
     fn update(
@@ -243,7 +256,7 @@ impl GameObject for UI {
         input_handler: &mut InputHandler,
         _dt: f32,
     ) {
-        let gui = &mut graphics_engine.renderer_gui;
+        let gui = &mut graphics_engine.renderer_2d;
         let color_panel = gui.get_panel("Test color");
 
         if let Some(color_panel) = color_panel {
@@ -270,7 +283,7 @@ impl GameObject for UI {
 fn main() {
     env_logger::init();
 
-    let mut game = Game::new("Test game");
+    let mut game = Game::new("Test game", 1280, 720);
 
     let game_object = ObjectController::new();
     game.add_game_object(game_object);

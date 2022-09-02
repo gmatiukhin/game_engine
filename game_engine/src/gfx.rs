@@ -3,11 +3,11 @@ use std::rc::Rc;
 use winit::dpi::PhysicalSize;
 use winit::window::Window;
 use crate::gfx::gfx_3d::Renderer3D;
-use crate::gfx::gui::RendererGUI;
+use crate::gfx::gfx_2d::Renderer2D;
 
 pub mod gfx_3d;
 pub mod texture;
-pub mod gui;
+pub mod gfx_2d;
 
 pub struct GraphicsEngine {
     device: Rc<wgpu::Device>,
@@ -18,7 +18,7 @@ pub struct GraphicsEngine {
     screen_size: PhysicalSize<u32>,
 
     pub renderer_3d: Renderer3D,
-    pub renderer_gui: RendererGUI,
+    pub renderer_2d: Renderer2D,
 }
 
 impl GraphicsEngine {
@@ -58,7 +58,7 @@ impl GraphicsEngine {
         let queue = Rc::new(queue);
 
         let renderer_3d = Renderer3D::new(Rc::clone(&device), Rc::clone(&queue), &surface_config);
-        let renderer_gui = RendererGUI::new(Rc::clone(&device), Rc::clone(&queue), &surface_config);
+        let renderer_gui = Renderer2D::new(Rc::clone(&device), Rc::clone(&queue), &surface_config);
 
         Self {
             screen_size,
@@ -67,7 +67,7 @@ impl GraphicsEngine {
             surface,
             surface_config,
             renderer_3d,
-            renderer_gui,
+            renderer_2d: renderer_gui,
         }
     }
 
@@ -83,7 +83,7 @@ impl GraphicsEngine {
                 });
 
         self.renderer_3d.render(&mut command_encoder, &view);
-        self.renderer_gui.render(&mut command_encoder, &view);
+        self.renderer_2d.render(&mut command_encoder, &view);
 
         self.queue.submit(std::iter::once(command_encoder.finish()));
         surface_texture.present();
@@ -99,7 +99,7 @@ impl GraphicsEngine {
             self.surface.configure(&self.device, &self.surface_config);
             self.renderer_3d
                 .resize(self.screen_size, &self.surface_config);
-            self.renderer_gui.resize(self.screen_size);
+            self.renderer_2d.resize(self.screen_size);
         }
     }
 
@@ -109,6 +109,6 @@ impl GraphicsEngine {
 
     pub(super) fn update(&mut self) {
         self.renderer_3d.update();
-        self.renderer_gui.update();
+        self.renderer_2d.update();
     }
 }

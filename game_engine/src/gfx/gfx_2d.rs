@@ -4,13 +4,13 @@ use std::collections::vec_deque::VecDeque;
 use std::rc::Rc;
 use wgpu::util::DeviceExt;
 use winit::dpi::PhysicalSize;
-use crate::gfx::gui::components_gui::*;
-use crate::gfx::gui::text::*;
+use crate::gfx::gfx_2d::components_2d::*;
+use crate::gfx::gfx_2d::text::*;
 
 pub mod text;
-pub mod components_gui;
+pub mod components_2d;
 
-pub struct RendererGUI {
+pub struct Renderer2D {
     device: Rc<wgpu::Device>,
     queue: Rc<wgpu::Queue>,
 
@@ -28,7 +28,7 @@ pub struct RendererGUI {
     text_rasterizer: TextRasterizer,
 }
 
-impl RendererGUI {
+impl Renderer2D {
     pub fn add_top_level_panels(&mut self, mut panels: Vec<GUIPanel>) {
         self.panels.append(&mut panels);
     }
@@ -47,7 +47,7 @@ impl RendererGUI {
                 if panel.name == name {
                     return Some(panel);
                 } else {
-                    if let GUIPanelContent::Elements(_, children) = &mut panel.content {
+                    if let GUIPanelContent::Panels(_, children) = &mut panel.content {
                         for child in children {
                             panel_queue.push_back(child);
                         }
@@ -60,7 +60,7 @@ impl RendererGUI {
     }
 }
 
-impl RendererGUI {
+impl Renderer2D {
     pub fn new(
         device: Rc<wgpu::Device>,
         queue: Rc<wgpu::Queue>,

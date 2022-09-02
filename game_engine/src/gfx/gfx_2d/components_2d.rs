@@ -1,4 +1,5 @@
 use wgpu::util::DeviceExt;
+use crate::gfx::texture;
 
 pub enum GUITransform {
     /// Pixel values
@@ -8,9 +9,10 @@ pub enum GUITransform {
 }
 
 pub enum GUIPanelContent {
-    Image(crate::gfx::texture::Image),
+    Image(texture::Image),
     Text(super::text::TextParameters),
-    Elements(wgpu::Color, Vec<GUIPanel>),
+    Panels(wgpu::Color, Vec<GUIPanel>),
+    Surface2D(Surface2D),
 }
 
 pub struct GUIPanel {
@@ -107,7 +109,7 @@ impl GUIPanel {
 
         let (texture, children) = match &self.content {
             GUIPanelContent::Image(img) => (
-                crate::gfx::texture::Texture::from_image(device, queue, &img.file, &img.name),
+                texture::Texture::from_image(device, queue, &img.file, &img.name),
                 vec![],
             ),
             GUIPanelContent::Text(text) => {
@@ -115,11 +117,11 @@ impl GUIPanel {
                 let height: u32 = (bottom - top) as u32;
                 let data = text_rasterizer.get_rasterized_data_from_text(text, width, height);
                 (
-                    crate::gfx::texture::Texture::from_text(device, queue, data, width, height),
+                    texture::Texture::from_text(device, queue, data, width, height),
                     vec![],
                 )
             }
-            GUIPanelContent::Elements(color, children) => {
+            GUIPanelContent::Panels(color, children) => {
                 let mut buffered_children: Vec<GUIPanelBuffered> = vec![];
                 for child in children {
                     if let Some(panel_buffered) = child.buffer(
@@ -135,10 +137,11 @@ impl GUIPanel {
                 }
 
                 (
-                    crate::gfx::texture::Texture::from_color(device, queue, color),
+                    texture::Texture::from_color(device, queue, color),
                     buffered_children,
                 )
             }
+            GUIPanelContent::Surface2D(surface) => (surface.texture(&device, &queue), vec![])
         };
 
         let texture_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
@@ -176,7 +179,7 @@ pub(super) struct GUIPanelBuffered {
 }
 
 impl GUIPanelBuffered {
-    pub fn render<'a>(&'a self, render_pass: &mut wgpu::RenderPass<'a>) {
+    pub(super) fn render<'a>(&'a self, render_pass: &mut wgpu::RenderPass<'a>) {
         render_pass.set_bind_group(1, &self.texture_bind_group, &[]);
         render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
         render_pass.set_index_buffer(self.index_buffer.slice(..), wgpu::IndexFormat::Uint32);
@@ -191,9 +194,9 @@ impl GUIPanelBuffered {
 #[repr(C)]
 #[derive(bytemuck::Pod, bytemuck::Zeroable, Copy, Clone, Debug)]
 pub(super) struct GUIVertex {
-    position: [f32; 2],
+    pub(super) position: [f32; 2],
     /// In wgpu's coordinate system UV origin is situated in the top left corner
-    text_coords: [f32; 2],
+    pub(super) text_coords: [f32; 2],
 }
 
 impl GUIVertex {
@@ -205,5 +208,39 @@ impl GUIVertex {
             step_mode: wgpu::VertexStepMode::Vertex,
             attributes: &ATTRIBUTES,
         }
+    }
+}
+
+pub struct Surface2D {
+    width: u32,
+    height: u32,
+    background_color: wgpu::Color,
+    cells: Vec<wgpu::Color>,
+}
+
+impl Surface2D {
+    pub fn new(width: u32, height: u32, background_color: wgpu::Color) -> Self {
+        Self {
+            width,
+            height,
+            background_color,
+            cells: vec![background_color; (width * height) as usize],
+        }
+    }
+
+    pub fn set_cell_color(&mut self, x: u32, y: u32, color: wgpu::Color) {
+        self.cells[(y * self.width + x) as usize] = color;
+    }
+
+    pub fn clear(&mut self) {
+        for el in self.cells.iter_mut() {
+            *el = self.background_color;
+        }
+    }
+}
+
+impl Surface2D {
+    pub(super) fn texture(&self, device: &wgpu::Device, queue: &wgpu::Queue) -> texture::Texture {
+        texture::Texture::default_texture(&device, &queue)
     }
 }

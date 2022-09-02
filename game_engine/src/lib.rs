@@ -2,6 +2,7 @@ use log::info;
 use winit::event::WindowEvent;
 use winit::event_loop::ControlFlow;
 use winit::{event::Event, event_loop::EventLoop, window::WindowBuilder};
+use winit::dpi::PhysicalSize;
 
 pub extern crate cgmath;
 extern crate core;
@@ -27,13 +28,17 @@ pub trait GameObject {
 pub struct Game {
     title: String,
     game_objects: Vec<Box<dyn GameObject>>,
+    window_width: u32,
+    window_height: u32,
 }
 
 impl Game {
-    pub fn new(title: &str) -> Self {
+    pub fn new(title: &str, window_width: u32, window_height: u32) -> Self {
         Self {
             title: title.to_string(),
             game_objects: vec![],
+            window_width,
+            window_height
         }
     }
 
@@ -47,6 +52,8 @@ impl Game {
         let event_loop = EventLoop::new();
         let window = WindowBuilder::new()
             .with_title(&self.title)
+            .with_inner_size(PhysicalSize::new(self.window_width, self.window_height))
+            .with_resizable(false)
             .build(&event_loop)
             .unwrap();
 
