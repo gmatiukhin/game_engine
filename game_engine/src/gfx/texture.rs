@@ -78,14 +78,10 @@ impl Texture {
     }
 
     pub(in crate::gfx) fn default_texture(device: &wgpu::Device, queue: &wgpu::Queue) -> Self {
-        Self::from_color(device, queue, &wgpu::Color::WHITE)
+        Self::from_color(device, queue, &Color::WHITE)
     }
 
-    pub(crate) fn from_color(
-        device: &wgpu::Device,
-        queue: &wgpu::Queue,
-        color: &wgpu::Color,
-    ) -> Self {
+    pub(crate) fn from_color(device: &wgpu::Device, queue: &wgpu::Queue, color: &Color) -> Self {
         let texture_size = wgpu::Extent3d {
             width: 1,
             height: 1,
@@ -164,7 +160,7 @@ impl Texture {
         };
 
         let texture = device.create_texture(&wgpu::TextureDescriptor {
-            label: Some(&format!("Texture for image: {}", label)),
+            label: Some(&format!("Image texture for {}", label)),
             size: texture_size,
             mip_level_count: 1,
             sample_count: 1,
@@ -190,12 +186,12 @@ impl Texture {
         );
 
         let view = texture.create_view(&wgpu::TextureViewDescriptor {
-            label: Some(&format!("Texture view for image: {}", label)),
+            label: Some(&format!("Texture view for {}", label)),
             ..wgpu::TextureViewDescriptor::default()
         });
 
         let sampler = device.create_sampler(&wgpu::SamplerDescriptor {
-            label: Some(&format!("Sampler for image: {}", label)),
+            label: Some(&format!("Sampler for {}", label)),
             address_mode_u: wgpu::AddressMode::ClampToEdge,
             address_mode_v: wgpu::AddressMode::ClampToEdge,
             address_mode_w: wgpu::AddressMode::ClampToEdge,
@@ -212,10 +208,10 @@ impl Texture {
         }
     }
 
-    pub(crate) fn from_text(
+    pub(crate) fn from_bytes_rgba(
         device: &wgpu::Device,
         queue: &wgpu::Queue,
-        data: Vec<u8>,
+        bytes: Vec<u8>,
         width: u32,
         height: u32,
     ) -> Self {
@@ -242,7 +238,7 @@ impl Texture {
                 origin: Default::default(),
                 aspect: Default::default(),
             },
-            &data,
+            &bytes,
             wgpu::ImageDataLayout {
                 offset: 0,
                 bytes_per_row: std::num::NonZeroU32::new(4 * width),
@@ -277,7 +273,7 @@ impl Texture {
 
 pub enum Material {
     Textured(Image),
-    FlatColor(wgpu::Color),
+    FlatColor(Color),
 }
 
 impl Material {

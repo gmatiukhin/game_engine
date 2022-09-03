@@ -1,13 +1,13 @@
+use crate::gfx::gfx_2d::Renderer2D;
+use crate::gfx::gfx_3d::Renderer3D;
 use log::info;
 use std::rc::Rc;
 use winit::dpi::PhysicalSize;
 use winit::window::Window;
-use crate::gfx::gfx_3d::Renderer3D;
-use crate::gfx::gfx_2d::Renderer2D;
 
+pub mod gfx_2d;
 pub mod gfx_3d;
 pub mod texture;
-pub mod gfx_2d;
 
 pub struct GraphicsEngine {
     device: Rc<wgpu::Device>,

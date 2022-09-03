@@ -1,14 +1,14 @@
+use crate::gfx::gfx_2d::components_2d::*;
+use crate::gfx::gfx_2d::text::*;
 use crate::util::OPENGL_TO_WGPU_MATRIX;
 use log::info;
 use std::collections::vec_deque::VecDeque;
 use std::rc::Rc;
 use wgpu::util::DeviceExt;
 use winit::dpi::PhysicalSize;
-use crate::gfx::gfx_2d::components_2d::*;
-use crate::gfx::gfx_2d::text::*;
 
-pub mod text;
 pub mod components_2d;
+pub mod text;
 
 pub struct Renderer2D {
     device: Rc<wgpu::Device>,
@@ -61,7 +61,7 @@ impl Renderer2D {
 }
 
 impl Renderer2D {
-    pub fn new(
+    pub(crate) fn new(
         device: Rc<wgpu::Device>,
         queue: Rc<wgpu::Queue>,
         surface_config: &wgpu::SurfaceConfiguration,
@@ -231,7 +231,7 @@ impl Renderer2D {
 
         self.buffered_panels = self
             .panels
-            .iter()
+            .iter_mut()
             .map(|panel| {
                 panel.buffer(
                     &self.device,

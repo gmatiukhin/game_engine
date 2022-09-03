@@ -1,14 +1,15 @@
+use game_engine::gfx::gfx_2d::components_2d::Surface2D;
 #[allow(unused_imports)]
 use game_engine::{
     cgmath::{Deg, InnerSpace, One, Point3, Quaternion, Rad, Vector3},
     gfx::{
-        gfx_3d::{
-            components_3d::{Mesh, Model, PrefabInstance, Vertex},
-            Renderer3D,
-        },
         gfx_2d::{
             components_2d::{GUIPanel, GUIPanelContent, GUITransform},
             text::{FontParameters, TextParameters},
+        },
+        gfx_3d::{
+            components_3d::{Mesh, Model, PrefabInstance, Vertex},
+            Renderer3D,
         },
         texture::{Color, Image, Material, Shader, Texture},
         GraphicsEngine,
@@ -18,7 +19,6 @@ use game_engine::{
     Game, GameObject,
 };
 use std::f32::consts::FRAC_PI_2;
-use game_engine::gfx::gfx_2d::components_2d::Surface2D;
 
 struct ObjectController {
     model: Model,
@@ -235,9 +235,17 @@ impl GameObject for UI {
             content: GUIPanelContent::Panels(Color::BLACK, vec![panel_with_text]),
         };
 
-        let mut surface = Surface2D::new(2, 2, Color::BLUE);
-        surface.set_cell_color(0, 0, Color::BLACK);
-        surface.clear();
+        let mut surface = Surface2D::new(16, 9, Color::BLUE);
+        for y in 0..9 {
+            for x in 0..16 {
+                let color = if (x + y % 2) % 2 == 0 {
+                    Color::BLACK
+                } else {
+                    Color::BLUE
+                };
+                surface.set_cell_color(x, y, color);
+            }
+        }
 
         let graphics_panel = GUIPanel {
             name: "Graphics panel".to_string(),

@@ -1,5 +1,6 @@
-use wgpu::util::DeviceExt;
 use crate::gfx::texture;
+use wgpu::util::DeviceExt;
+use winit::dpi::PhysicalSize;
 
 pub enum GUITransform {
     /// Pixel values
@@ -27,13 +28,13 @@ pub struct GUIPanel {
 
 impl GUIPanel {
     pub(super) fn buffer(
-        &self,
+        &mut self,
         device: &wgpu::Device,
         queue: &wgpu::Queue,
         texture_bind_group_layout: &wgpu::BindGroupLayout,
         text_rasterizer: &super::text::TextRasterizer,
         parent_anchor: cgmath::Vector2<f32>,
-        parent_dimensions: cgmath::Vector2<f32>,
+        parent_dimensions: PhysicalSize<f32>,
     ) -> Option<GUIPanelBuffered> {
         if !self.active {
             return None;
@@ -44,31 +45,31 @@ impl GUIPanel {
                 (parent_anchor.x + x as f32, parent_anchor.y + y as f32)
             }
             GUITransform::Relative(percentage_x, percentage_y) => (
-                parent_anchor.x + parent_dimensions.x as f32 * percentage_x,
-                parent_anchor.y + parent_dimensions.y as f32 * percentage_y,
+                parent_anchor.x + parent_dimensions.width as f32 * percentage_x,
+                parent_anchor.y + parent_dimensions.height as f32 * percentage_y,
             ),
         };
 
         let (right, bottom) = match self.dimensions {
             GUITransform::Absolute(width, height) => (left + width as f32, top + height as f32),
             GUITransform::Relative(percentage_x, percentage_y) => (
-                left + parent_dimensions.x as f32 * percentage_x,
-                top + parent_dimensions.y as f32 * percentage_y,
+                left + parent_dimensions.width as f32 * percentage_x,
+                top + parent_dimensions.height as f32 * percentage_y,
             ),
         };
 
         let left = left
             .max(parent_anchor.x)
-            .min(parent_dimensions.x + parent_anchor.x);
+            .min(parent_dimensions.width + parent_anchor.x);
         let top = top
             .max(parent_anchor.y)
-            .min(parent_dimensions.y + parent_anchor.y);
+            .min(parent_dimensions.height + parent_anchor.y);
         let right = right
             .max(parent_anchor.x)
-            .min(parent_dimensions.x + parent_anchor.x);
+            .min(parent_dimensions.width + parent_anchor.x);
         let bottom = bottom
             .max(parent_anchor.y)
-            .min(parent_dimensions.y + parent_anchor.y);
+            .min(parent_dimensions.height + parent_anchor.y);
 
         let vertices = vec![
             // Top left
@@ -107,7 +108,7 @@ impl GUIPanel {
             usage: wgpu::BufferUsages::INDEX,
         });
 
-        let (texture, children) = match &self.content {
+        let (texture, children) = match &mut self.content {
             GUIPanelContent::Image(img) => (
                 texture::Texture::from_image(device, queue, &img.file, &img.name),
                 vec![],
@@ -115,9 +116,9 @@ impl GUIPanel {
             GUIPanelContent::Text(text) => {
                 let width: u32 = (right - left) as u32;
                 let height: u32 = (bottom - top) as u32;
-                let data = text_rasterizer.get_rasterized_data_from_text(text, width, height);
+                let data = text_rasterizer.get_rgba_from_text(text, width, height);
                 (
-                    texture::Texture::from_text(device, queue, data, width, height),
+                    texture::Texture::from_bytes_rgba(device, queue, data, width, height),
                     vec![],
                 )
             }
@@ -141,7 +142,16 @@ impl GUIPanel {
                     buffered_children,
                 )
             }
-            GUIPanelContent::Surface2D(surface) => (surface.texture(&device, &queue), vec![])
+            GUIPanelContent::Surface2D(surface) => {
+                if let Some(image) = surface.image((right - left, bottom - top).into()) {
+                    (
+                        texture::Texture::from_image(&device, &queue, &image, "Surface image"),
+                        vec![],
+                    )
+                } else {
+                    (texture::Texture::default_texture(&device, &queue), vec![])
+                }
+            }
         };
 
         let texture_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
@@ -216,6 +226,8 @@ pub struct Surface2D {
     height: u32,
     background_color: wgpu::Color,
     cells: Vec<wgpu::Color>,
+    is_updated: bool,
+    image: Option<image::DynamicImage>,
 }
 
 impl Surface2D {
@@ -225,22 +237,66 @@ impl Surface2D {
             height,
             background_color,
             cells: vec![background_color; (width * height) as usize],
+            is_updated: true,
+            image: None,
         }
     }
 
     pub fn set_cell_color(&mut self, x: u32, y: u32, color: wgpu::Color) {
         self.cells[(y * self.width + x) as usize] = color;
+        self.is_updated = true;
     }
 
     pub fn clear(&mut self) {
         for el in self.cells.iter_mut() {
             *el = self.background_color;
         }
+        self.is_updated = true;
     }
 }
 
 impl Surface2D {
-    pub(super) fn texture(&self, device: &wgpu::Device, queue: &wgpu::Queue) -> texture::Texture {
-        texture::Texture::default_texture(&device, &queue)
+    pub(super) fn image(
+        &mut self,
+        panel_dimensions: PhysicalSize<f32>,
+    ) -> Option<image::DynamicImage> {
+        if let Some(image) = &self.image {
+            Some(image.clone())
+        } else {
+            if self.is_updated {
+                let cell_width = panel_dimensions.width as u32 / self.width;
+                let cell_height = panel_dimensions.height as u32 / self.height;
+
+                let texture_width = self.width * cell_width;
+                let texture_height = self.height * cell_height;
+
+                let mut image_buffer = image::ImageBuffer::new(texture_width, texture_height);
+
+                for x in 0..texture_width {
+                    for y in 0..texture_height {
+                        let cells_index = y / cell_height * self.width + x / cell_width;
+                        let color: wgpu::Color = self.cells[cells_index as usize];
+
+                        image_buffer.put_pixel(
+                            x,
+                            y,
+                            [
+                                (color.r * 255.0) as u8,
+                                (color.g * 255.0) as u8,
+                                (color.b * 255.0) as u8,
+                                (color.a * 255.0) as u8,
+                            ]
+                            .into(),
+                        );
+                    }
+                }
+                let image = image::DynamicImage::ImageRgba8(image_buffer);
+                self.image = Some(image.clone());
+
+                Some(image)
+            } else {
+                None
+            }
+        }
     }
 }

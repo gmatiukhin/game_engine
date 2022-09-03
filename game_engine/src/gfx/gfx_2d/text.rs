@@ -12,7 +12,7 @@ impl TextRasterizer {
         Self { default_font }
     }
 
-    pub(crate) fn get_rasterized_data_from_text(
+    pub(crate) fn get_rgba_from_text(
         &self,
         text: &TextParameters,
         width: u32,

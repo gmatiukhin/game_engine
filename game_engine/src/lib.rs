@@ -1,8 +1,8 @@
 use log::info;
+use winit::dpi::PhysicalSize;
 use winit::event::WindowEvent;
 use winit::event_loop::ControlFlow;
 use winit::{event::Event, event_loop::EventLoop, window::WindowBuilder};
-use winit::dpi::PhysicalSize;
 
 pub extern crate cgmath;
 extern crate core;
@@ -38,7 +38,7 @@ impl Game {
             title: title.to_string(),
             game_objects: vec![],
             window_width,
-            window_height
+            window_height,
         }
     }
 
