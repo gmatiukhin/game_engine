@@ -12,7 +12,7 @@ pub enum GUITransform {
 pub enum GUIPanelContent {
     Image(texture::Image),
     Text(super::text::TextParameters),
-    Panels(wgpu::Color, Vec<GUIPanel>),
+    Panels(crate::gfx::texture::Color, Vec<GUIPanel>),
     Surface2D(Surface2D),
 }
 
@@ -110,7 +110,7 @@ impl GUIPanel {
 
         let (texture, children) = match &mut self.content {
             GUIPanelContent::Image(img) => (
-                texture::Texture::from_image(device, queue, &img.file, &img.name),
+                texture::Texture::from_image(device, queue, &img.file, &img.name, false),
                 vec![],
             ),
             GUIPanelContent::Text(text) => {
@@ -143,14 +143,11 @@ impl GUIPanel {
                 )
             }
             GUIPanelContent::Surface2D(surface) => {
-                if let Some(image) = surface.image((right - left, bottom - top).into()) {
-                    (
-                        texture::Texture::from_image(&device, &queue, &image, "Surface image"),
-                        vec![],
-                    )
-                } else {
-                    (texture::Texture::default_texture(&device, &queue), vec![])
-                }
+                let image = surface.image();
+                (
+                    texture::Texture::from_image(&device, &queue, &image, "Surface image", true),
+                    vec![],
+                )
             }
         };
 
@@ -224,79 +221,40 @@ impl GUIVertex {
 pub struct Surface2D {
     width: u32,
     height: u32,
-    background_color: wgpu::Color,
-    cells: Vec<wgpu::Color>,
-    is_updated: bool,
-    image: Option<image::DynamicImage>,
+    default_color: image::Rgba<u8>,
+    image: image::RgbaImage,
 }
 
 impl Surface2D {
-    pub fn new(width: u32, height: u32, background_color: wgpu::Color) -> Self {
+    pub fn new(width: u32, height: u32, default_color: texture::Color) -> Self {
+        let default_color = crate::util::from_color_to_rgba(&default_color);
+        let mut image: image::RgbaImage = image::ImageBuffer::new(width, height);
+        for pixel in image.pixels_mut() {
+            *pixel = default_color;
+        }
+
         Self {
             width,
             height,
-            background_color,
-            cells: vec![background_color; (width * height) as usize],
-            is_updated: true,
-            image: None,
+            default_color,
+            image,
         }
     }
 
-    pub fn set_cell_color(&mut self, x: u32, y: u32, color: wgpu::Color) {
-        self.cells[(y * self.width + x) as usize] = color;
-        self.is_updated = true;
+    pub fn set_cell_color(&mut self, x: u32, y: u32, color: texture::Color) {
+        if x > self.width || y > self.height {
+            return;
+        }
+        self.image.put_pixel(x, y, crate::util::from_color_to_rgba(&color));
     }
 
     pub fn clear(&mut self) {
-        for el in self.cells.iter_mut() {
-            *el = self.background_color;
+        for el in self.image.pixels_mut() {
+            *el = self.default_color;
         }
-        self.is_updated = true;
     }
-}
 
-impl Surface2D {
-    pub(super) fn image(
-        &mut self,
-        panel_dimensions: PhysicalSize<f32>,
-    ) -> Option<image::DynamicImage> {
-        if let Some(image) = &self.image {
-            Some(image.clone())
-        } else {
-            if self.is_updated {
-                let cell_width = panel_dimensions.width as u32 / self.width;
-                let cell_height = panel_dimensions.height as u32 / self.height;
-
-                let texture_width = self.width * cell_width;
-                let texture_height = self.height * cell_height;
-
-                let mut image_buffer = image::ImageBuffer::new(texture_width, texture_height);
-
-                for x in 0..texture_width {
-                    for y in 0..texture_height {
-                        let cells_index = y / cell_height * self.width + x / cell_width;
-                        let color: wgpu::Color = self.cells[cells_index as usize];
-
-                        image_buffer.put_pixel(
-                            x,
-                            y,
-                            [
-                                (color.r * 255.0) as u8,
-                                (color.g * 255.0) as u8,
-                                (color.b * 255.0) as u8,
-                                (color.a * 255.0) as u8,
-                            ]
-                            .into(),
-                        );
-                    }
-                }
-                let image = image::DynamicImage::ImageRgba8(image_buffer);
-                self.image = Some(image.clone());
-
-                Some(image)
-            } else {
-                None
-            }
-        }
+    fn image(&self) -> image::DynamicImage {
+        image::DynamicImage::ImageRgba8(self.image.clone())
     }
 }

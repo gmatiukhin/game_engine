@@ -30,15 +30,17 @@ pub struct Game {
     game_objects: Vec<Box<dyn GameObject>>,
     window_width: u32,
     window_height: u32,
+    resizable: bool
 }
 
 impl Game {
-    pub fn new(title: &str, window_width: u32, window_height: u32) -> Self {
+    pub fn new(title: &str, window_width: u32, window_height: u32, resizable: bool) -> Self {
         Self {
             title: title.to_string(),
             game_objects: vec![],
             window_width,
             window_height,
+            resizable
         }
     }
 
@@ -53,7 +55,7 @@ impl Game {
         let window = WindowBuilder::new()
             .with_title(&self.title)
             .with_inner_size(PhysicalSize::new(self.window_width, self.window_height))
-            .with_resizable(false)
+            .with_resizable(self.resizable)
             .build(&event_loop)
             .unwrap();
 

@@ -265,23 +265,39 @@ impl GameObject for UI {
         _dt: f32,
     ) {
         let gui = &mut graphics_engine.renderer_2d;
-        let color_panel = gui.get_panel("Test color");
+        // let color_panel = gui.get_panel("Test color");
+        //
+        // if let Some(color_panel) = color_panel {
+        //     if input_handler.is_key_down(&VirtualKeyCode::C) {
+        //         color_panel.active = !color_panel.active;
+        //     }
+        // }
+        //
+        // let text_panel = gui.get_panel("Test text");
+        //
+        // if let Some(text_panel) = text_panel {
+        //     if input_handler.is_key_down(&VirtualKeyCode::T) {
+        //         text_panel.active = !text_panel.active;
+        //     }
+        //     if input_handler.is_key_down(&VirtualKeyCode::K) {
+        //         if let GUIPanelContent::Text(param) = &mut text_panel.content {
+        //             param.text = "Something new".to_string();
+        //         }
+        //     }
+        // }
 
-        if let Some(color_panel) = color_panel {
-            if input_handler.is_key_down(&VirtualKeyCode::C) {
-                color_panel.active = !color_panel.active;
-            }
-        }
-
-        let text_panel = gui.get_panel("Test text");
-
-        if let Some(text_panel) = text_panel {
-            if input_handler.is_key_down(&VirtualKeyCode::T) {
-                text_panel.active = !text_panel.active;
-            }
-            if input_handler.is_key_down(&VirtualKeyCode::K) {
-                if let GUIPanelContent::Text(param) = &mut text_panel.content {
-                    param.text = "Something new".to_string();
+        let surface = gui.get_panel("Graphics panel");
+        if let Some(GUIPanel { content: GUIPanelContent::Surface2D(surface), .. }) = surface {
+            if input_handler.is_key_down(&VirtualKeyCode::H) {
+                for y in 0..9 {
+                    for x in 0..16 {
+                        let color = if (x + y % 2) % 2 == 0 {
+                            Color::BLACK
+                        } else {
+                            Color::TRANSPARENT
+                        };
+                        surface.set_cell_color(x, y, color);
+                    }
                 }
             }
         }
@@ -291,7 +307,7 @@ impl GameObject for UI {
 fn main() {
     env_logger::init();
 
-    let mut game = Game::new("Test game", 1280, 720);
+    let mut game = Game::new("Test game", 1280, 720, true);
 
     let game_object = ObjectController::new();
     game.add_game_object(game_object);

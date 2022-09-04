@@ -85,7 +85,7 @@ impl TextRasterizer {
         glyphs: Vec<Glyph>,
         width: u32,
         height: u32,
-        color: &wgpu::Color,
+        color: &crate::gfx::texture::Color,
     ) -> Vec<u8> {
         let width = width as usize;
         let height = height as usize;
@@ -120,7 +120,7 @@ pub enum FontParameters {
 
 pub struct TextParameters {
     pub text: String,
-    pub color: wgpu::Color,
+    pub color: crate::gfx::texture::Color,
     /// Text scale in points
     pub scale: f32,
     pub font: FontParameters,

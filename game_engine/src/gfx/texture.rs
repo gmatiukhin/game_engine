@@ -149,6 +149,7 @@ impl Texture {
         queue: &wgpu::Queue,
         image: &image::DynamicImage,
         label: &str,
+        pixelated: bool
     ) -> Self {
         let image = image.to_rgba8();
         let dimensions = image.dimensions();
@@ -190,13 +191,19 @@ impl Texture {
             ..wgpu::TextureViewDescriptor::default()
         });
 
+        let mag_min_filter = if pixelated {
+            wgpu::FilterMode::Nearest
+        } else {
+            wgpu::FilterMode::Linear
+        };
+
         let sampler = device.create_sampler(&wgpu::SamplerDescriptor {
             label: Some(&format!("Sampler for {}", label)),
             address_mode_u: wgpu::AddressMode::ClampToEdge,
             address_mode_v: wgpu::AddressMode::ClampToEdge,
             address_mode_w: wgpu::AddressMode::ClampToEdge,
-            mag_filter: wgpu::FilterMode::Linear,
-            min_filter: wgpu::FilterMode::Linear,
+            mag_filter: mag_min_filter,
+            min_filter: mag_min_filter,
             mipmap_filter: wgpu::FilterMode::Nearest,
             ..wgpu::SamplerDescriptor::default()
         });
@@ -279,7 +286,7 @@ pub enum Material {
 impl Material {
     pub(crate) fn texture(&self, device: &wgpu::Device, queue: &wgpu::Queue) -> Texture {
         match self {
-            Material::Textured(img) => Texture::from_image(device, queue, &img.file, &img.name),
+            Material::Textured(img) => Texture::from_image(device, queue, &img.file, &img.name, false),
             Material::FlatColor(color) => Texture::from_color(device, queue, &color),
         }
     }

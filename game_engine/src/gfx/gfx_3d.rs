@@ -155,7 +155,7 @@ impl Renderer3D {
                 view: &view,
                 resolve_target: None,
                 ops: wgpu::Operations {
-                    load: wgpu::LoadOp::Clear(wgpu::Color {
+                    load: wgpu::LoadOp::Clear(crate::gfx::texture::Color {
                         r: 0.1,
                         g: 0.2,
                         b: 0.3,

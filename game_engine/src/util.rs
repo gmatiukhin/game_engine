@@ -9,3 +9,14 @@ pub const OPENGL_TO_WGPU_MATRIX: cgmath::Matrix4<f32> = cgmath::Matrix4::new(
     0.0, 0.0, 0.5, 0.0,
     0.0, 0.0, 0.5, 1.0,
 );
+
+pub(crate) fn from_color_to_rgba(color: &crate::gfx::texture::Color) -> image::Rgba<u8> {
+    image::Rgba {
+        0: [
+            (color.r * 255.0) as u8,
+            (color.g * 255.0) as u8,
+            (color.b * 255.0) as u8,
+            (color.a * 255.0) as u8,
+        ]
+    }
+}
