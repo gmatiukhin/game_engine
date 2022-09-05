@@ -236,9 +236,9 @@ impl GameObject for UI {
             content: GUIPanelContent::Panels(Color::BLACK, vec![panel_with_text]),
         };
 
-        let mut surface = Surface2D::new(16, 9, Color::WHITE);
-        for y in 0..9 {
-            for x in 0..16 {
+        let mut surface = Surface2D::new(160, 90, Color::BLUE);
+        for y in 0..360 {
+            for x in 0..720 {
                 let color = if (x + y % 2) % 2 == 0 {
                     Color::BLACK
                 } else {
@@ -266,47 +266,18 @@ impl GameObject for UI {
         _dt: f32,
     ) {
         let gui = &mut graphics_engine.renderer_2d;
-        // let color_panel = gui.get_panel("Test color");
-        //
-        // if let Some(color_panel) = color_panel {
-        //     if input_handler.is_key_down(&VirtualKeyCode::C) {
-        //         color_panel.active = !color_panel.active;
-        //     }
-        // }
-        //
-        // let text_panel = gui.get_panel("Test text");
-        //
-        // if let Some(text_panel) = text_panel {
-        //     if input_handler.is_key_down(&VirtualKeyCode::T) {
-        //         text_panel.active = !text_panel.active;
-        //     }
-        //     if input_handler.is_key_down(&VirtualKeyCode::K) {
-        //         if let GUIPanelContent::Text(param) = &mut text_panel.content {
-        //             param.text = "Something new".to_string();
-        //         }
-        //     }
-        // }
 
-        let surface = gui.get_panel("Graphics panel");
         if let Some(GUIPanel {
             content: GUIPanelContent::Surface2D(surface),
             ..
-        }) = surface
+        }) = gui.get_panel("Graphics panel")
         {
-            if input_handler.is_key_down(&VirtualKeyCode::H) {
-                surface.draw_line((0, 0).into(), (5, 0).into(), Color::GREEN);
+            if input_handler.is_key_down(&VirtualKeyCode::C) {
+                surface.draw_circle((80, 45).into(), 20, Color::RED, false);
             }
 
-            if input_handler.is_key_down(&VirtualKeyCode::V) {
-                surface.draw_line((7, 0).into(), (7, 5).into(), Color::GREEN);
-            }
-
-            if input_handler.is_key_down(&VirtualKeyCode::I) {
-                surface.draw_line((5, 5).into(), (0, 0).into(), Color::RED);
-            }
-
-            if input_handler.is_key_down(&VirtualKeyCode::J) {
-                surface.draw_line((0, 1).into(), (6, 4).into(), Color::BLUE)
+            if input_handler.is_key_down(&VirtualKeyCode::F) {
+                surface.draw_circle((80, 45).into(), 20, Color::GREEN, true);
             }
         }
     }

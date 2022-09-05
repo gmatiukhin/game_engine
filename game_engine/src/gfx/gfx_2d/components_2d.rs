@@ -1,5 +1,4 @@
 use crate::gfx::texture;
-use cgmath::InnerSpace;
 use wgpu::util::DeviceExt;
 use winit::dpi::PhysicalSize;
 
@@ -363,6 +362,93 @@ impl Surface2D {
                 d += 2 * dy;
             }
         }
+    }
+
+    pub fn draw_rectangle(
+        &mut self,
+        start: cgmath::Point2<u32>,
+        end: cgmath::Point2<u32>,
+        color: texture::Color,
+        fill: bool,
+    ) {
+        if fill {
+            let (x0, x1) = if end.x < start.x {
+                (end.x, start.x)
+            } else {
+                (start.x, end.x)
+            };
+
+            let (y0, y1) = if end.y < start.y {
+                (end.y, start.y)
+            } else {
+                (start.y, end.y)
+            };
+
+            for y in y0..=y1 {
+                for x in x0..=x1 {
+                    self.draw_pixel((x, y).into(), color);
+                }
+            }
+        } else {
+            self.draw_line((start.x, start.y).into(), (end.x, start.y).into(), color);
+            self.draw_line((end.x, start.y).into(), (end.x, end.y).into(), color);
+            self.draw_line((end.x, end.y).into(), (start.x, end.y).into(), color);
+            self.draw_line((start.x, end.y).into(), (start.x, start.y).into(), color);
+        }
+    }
+
+    /// Draws circle using [modified Bresenham's circle drawing algorithm](https://weber.itn.liu.se/~stegu/circle/circlealgorithm.pdf)
+    pub fn draw_circle(
+        &mut self,
+        center: cgmath::Point2<u32>,
+        radius: u32,
+        color: texture::Color,
+        fill: bool,
+    ) {
+        let mut x: i32 = 0;
+        let mut y: i32 = radius as i32;
+        let mut d = 5 - 4 * radius as i32;
+        let mut da = 12;
+        let mut db = 20 - 8 * radius as i32;
+
+        while x <= y {
+            if fill {
+                self.draw_circle_octants_filled(center, x, y, color);
+            } else {
+                self.draw_circle_octants(center, x, y, color);
+            }
+
+            if d < 0 {
+                d += da;
+                db += 8;
+            } else {
+                y -= 1;
+                d += db;
+                db += 16;
+            }
+            x += 1;
+            da += 8;
+        }
+    }
+
+    #[rustfmt::skip]
+    fn draw_circle_octants(&mut self, center: cgmath::Point2<u32>, x: i32, y: i32, color: texture::Color) {
+        self.draw_pixel(((center.x as i32 + x) as u32, (center.y as i32 + y) as u32).into(), color);
+        self.draw_pixel(((center.x as i32 - x) as u32, (center.y as i32 + y) as u32).into(), color);
+        self.draw_pixel(((center.x as i32 + x) as u32, (center.y as i32 - y) as u32).into(), color);
+        self.draw_pixel(((center.x as i32 - x) as u32, (center.y as i32 - y) as u32).into(), color);
+        self.draw_pixel(((center.x as i32 + y) as u32, (center.y as i32 + x) as u32).into(), color);
+        self.draw_pixel(((center.x as i32 - y) as u32, (center.y as i32 + x) as u32).into(), color);
+        self.draw_pixel(((center.x as i32 + y) as u32, (center.y as i32 - x) as u32).into(), color);
+        self.draw_pixel(((center.x as i32 - y) as u32, (center.y as i32 - x) as u32).into(), color);
+    }
+
+    #[rustfmt::skip]
+    fn draw_circle_octants_filled(&mut self, center: cgmath::Point2<u32>, x: i32, y: i32, color: texture::Color) {
+        self.draw_line(((center.x as i32 - x) as u32, (center.y as i32 + y) as u32).into(), ((center.x as i32 + x) as u32, (center.y as i32 + y) as u32).into(), color);
+        self.draw_line(((center.x as i32 - x) as u32, (center.y as i32 - y) as u32).into(), ((center.x as i32 + x) as u32, (center.y as i32 - y) as u32).into(), color);
+        self.draw_line(((center.x as i32 - y) as u32, (center.y as i32 + x) as u32).into(), ((center.x as i32 + y) as u32, (center.y as i32 + x) as u32).into(), color);
+        self.draw_line(((center.x as i32 - y) as u32, (center.y as i32 - x) as u32).into(), ((center.x as i32 + y) as u32, (center.y as i32 - x) as u32).into(), color);
     }
 
     pub fn clear(&mut self) {
