@@ -226,6 +226,7 @@ impl GameObject for UI {
                 scale: 40.0,
                 font: FontParameters::Default,
             }),
+            children: vec![],
         };
 
         let _colored_panel = GUIPanel {
@@ -233,7 +234,8 @@ impl GameObject for UI {
             active: true,
             position: GUITransform::Relative(0.01, 0.01),
             dimensions: GUITransform::Relative(0.3, 0.7),
-            content: GUIPanelContent::Panels(Color::BLACK, vec![panel_with_text]),
+            content: GUIPanelContent::Color(Color::BLACK),
+            children: vec![panel_with_text],
         };
 
         let mut surface = Surface2D::new(160, 90, Color::BLUE);
@@ -254,6 +256,7 @@ impl GameObject for UI {
             position: GUITransform::Relative(0.0, 0.0),
             dimensions: GUITransform::Relative(1.0, 1.0),
             content: GUIPanelContent::Surface2D(surface),
+            children: vec![],
         };
 
         gui.add_top_level_panels(vec![graphics_panel]);

@@ -47,10 +47,8 @@ impl Renderer2D {
                 if panel.name == name {
                     return Some(panel);
                 } else {
-                    if let GUIPanelContent::Panels(_, children) = &mut panel.content {
-                        for child in children {
-                            panel_queue.push_back(child);
-                        }
+                    for child in panel.children.iter_mut() {
+                        panel_queue.push_back(child);
                     }
                 }
             }

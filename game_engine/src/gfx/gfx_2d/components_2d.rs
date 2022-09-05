@@ -11,8 +11,8 @@ pub enum GUITransform {
 
 pub enum GUIPanelContent {
     Image(texture::Image),
+    Color(texture::Color),
     Text(super::text::TextParameters),
-    Panels(texture::Color, Vec<GUIPanel>),
     Surface2D(Surface2D),
 }
 
@@ -24,6 +24,7 @@ pub struct GUIPanel {
     pub dimensions: GUITransform,
 
     pub content: GUIPanelContent,
+    pub children: Vec<GUIPanel>,
 }
 
 impl GUIPanel {
@@ -108,48 +109,38 @@ impl GUIPanel {
             usage: wgpu::BufferUsages::INDEX,
         });
 
-        let (texture, children) = match &mut self.content {
-            GUIPanelContent::Image(img) => (
-                texture::Texture::from_image(device, queue, &img.file, &img.name, false),
-                vec![],
-            ),
+        let texture = match &mut self.content {
+            GUIPanelContent::Image(img) => {
+                texture::Texture::from_image(device, queue, &img.file, &img.name, false)
+            }
             GUIPanelContent::Text(text) => {
                 let width: u32 = (right - left) as u32;
                 let height: u32 = (bottom - top) as u32;
                 let data = text_rasterizer.get_rgba_from_text(text, width, height);
-                (
-                    texture::Texture::from_bytes_rgba(device, queue, data, width, height),
-                    vec![],
-                )
-            }
-            GUIPanelContent::Panels(color, children) => {
-                let mut buffered_children: Vec<GUIPanelBuffered> = vec![];
-                for child in children {
-                    if let Some(panel_buffered) = child.buffer(
-                        &device,
-                        &queue,
-                        &texture_bind_group_layout,
-                        text_rasterizer,
-                        (left, top).into(),
-                        (right - left, bottom - top).into(),
-                    ) {
-                        buffered_children.push(panel_buffered);
-                    }
-                }
 
-                (
-                    texture::Texture::from_color(device, queue, color),
-                    buffered_children,
-                )
+                texture::Texture::from_bytes_rgba(device, queue, data, width, height)
             }
+            GUIPanelContent::Color(color) => texture::Texture::from_color(device, queue, color),
             GUIPanelContent::Surface2D(surface) => {
                 let image = surface.image();
-                (
-                    texture::Texture::from_image(&device, &queue, &image, "Surface image", true),
-                    vec![],
-                )
+                texture::Texture::from_image(&device, &queue, &image, "Surface image", true)
             }
         };
+
+        let mut buffered_children = vec![];
+
+        for child in &mut self.children {
+            if let Some(panel_buffered) = child.buffer(
+                &device,
+                &queue,
+                &texture_bind_group_layout,
+                text_rasterizer,
+                (left, top).into(),
+                (right - left, bottom - top).into(),
+            ) {
+                buffered_children.push(panel_buffered);
+            }
+        }
 
         let texture_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: Some("panel"),
@@ -171,7 +162,7 @@ impl GUIPanel {
             index_buffer,
             indices_len: indices.len() as u32,
             texture_bind_group,
-            children,
+            children: buffered_children,
         })
     }
 }
