@@ -17,6 +17,6 @@ pub(crate) fn from_color_to_rgba(color: &crate::gfx::texture::Color) -> image::R
             (color.g * 255.0) as u8,
             (color.b * 255.0) as u8,
             (color.a * 255.0) as u8,
-        ]
+        ],
     }
 }

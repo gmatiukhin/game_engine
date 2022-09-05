@@ -149,7 +149,7 @@ impl Texture {
         queue: &wgpu::Queue,
         image: &image::DynamicImage,
         label: &str,
-        pixelated: bool
+        pixelated: bool,
     ) -> Self {
         let image = image.to_rgba8();
         let dimensions = image.dimensions();
@@ -286,7 +286,9 @@ pub enum Material {
 impl Material {
     pub(crate) fn texture(&self, device: &wgpu::Device, queue: &wgpu::Queue) -> Texture {
         match self {
-            Material::Textured(img) => Texture::from_image(device, queue, &img.file, &img.name, false),
+            Material::Textured(img) => {
+                Texture::from_image(device, queue, &img.file, &img.name, false)
+            }
             Material::FlatColor(color) => Texture::from_color(device, queue, &color),
         }
     }

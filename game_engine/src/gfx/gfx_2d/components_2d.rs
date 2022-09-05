@@ -1,4 +1,5 @@
 use crate::gfx::texture;
+use cgmath::InnerSpace;
 use wgpu::util::DeviceExt;
 use winit::dpi::PhysicalSize;
 
@@ -12,7 +13,7 @@ pub enum GUITransform {
 pub enum GUIPanelContent {
     Image(texture::Image),
     Text(super::text::TextParameters),
-    Panels(crate::gfx::texture::Color, Vec<GUIPanel>),
+    Panels(texture::Color, Vec<GUIPanel>),
     Surface2D(Surface2D),
 }
 
@@ -241,11 +242,127 @@ impl Surface2D {
         }
     }
 
-    pub fn set_cell_color(&mut self, x: u32, y: u32, color: texture::Color) {
-        if x > self.width || y > self.height {
+    pub fn draw_pixel(&mut self, position: cgmath::Point2<u32>, color: texture::Color) {
+        if position.x >= self.width || position.y >= self.height {
             return;
         }
-        self.image.put_pixel(x, y, crate::util::from_color_to_rgba(&color));
+        self.image.put_pixel(
+            position.x,
+            position.y,
+            crate::util::from_color_to_rgba(&color),
+        );
+    }
+
+    /// Draws line from `start` to `end` using [Bresenham's line algorithm](https://en.wikipedia.org/wiki/Bresenham%27s_line_algorithm) with optimisations
+    pub fn draw_line(
+        &mut self,
+        start: cgmath::Point2<u32>,
+        end: cgmath::Point2<u32>,
+        color: texture::Color,
+    ) {
+        let dx = i32::abs(end.x as i32 - start.x as i32);
+        let dy = i32::abs(end.y as i32 - start.y as i32);
+
+        // Optimisation for straight vertical line
+        if dx == 0 {
+            let (y0, y1) = if end.y < start.y {
+                (end.y, start.y)
+            } else {
+                (start.y, end.y)
+            };
+
+            for y in y0..=y1 {
+                self.draw_pixel((start.x, y).into(), color);
+            }
+            return;
+        }
+
+        // Optimisation for straight horizontal line
+        if dy == 0 {
+            let (x0, x1) = if end.x < start.x {
+                (end.x, start.x)
+            } else {
+                (start.x, end.x)
+            };
+
+            for x in x0..=x1 {
+                self.draw_pixel((x, start.y).into(), color);
+            }
+            return;
+        }
+
+        // The algorithm itself
+        if dy < dx {
+            if start.x > end.x {
+                self.draw_line_low(end, start, color);
+            } else {
+                self.draw_line_low(start, end, color);
+            }
+        } else {
+            if start.y > end.y {
+                self.draw_line_high(end, start, color);
+            } else {
+                self.draw_line_high(start, end, color);
+            }
+        }
+    }
+
+    fn draw_line_high(
+        &mut self,
+        start: cgmath::Point2<u32>,
+        end: cgmath::Point2<u32>,
+        color: texture::Color,
+    ) {
+        let mut dx = end.x as i32 - start.x as i32;
+        let dy = end.y as i32 - start.y as i32;
+        let mut xi = 1;
+
+        if dx < 0 {
+            xi = -1;
+            dx = -dx;
+        }
+        let mut d = (2 * dx) - dy;
+        let mut x = start.x as i32;
+
+        for y in start.y..=end.y {
+            self.draw_pixel((x as u32, y).into(), color);
+
+            if d > 0 {
+                x += xi;
+                d += 2 * (dx - dy);
+            } else {
+                d += 2 * dx;
+            }
+        }
+    }
+
+    fn draw_line_low(
+        &mut self,
+        start: cgmath::Point2<u32>,
+        end: cgmath::Point2<u32>,
+        color: texture::Color,
+    ) {
+        let dx = end.x as i32 - start.x as i32;
+        let mut dy = end.y as i32 - start.y as i32;
+        let mut yi = 1;
+
+        if dy < 0 {
+            yi = -1;
+            dy = -dy;
+        }
+
+        let mut d = (2 * dy) - dx;
+        let mut y = start.y as i32;
+
+        for x in start.x..=end.x {
+            self.draw_pixel((x, y as u32).into(), color);
+            if d > 0 {
+                y += yi;
+                d += 2 * (dy - dx);
+            } else {
+                d += 2 * dy;
+            }
+        }
     }
 
     pub fn clear(&mut self) {

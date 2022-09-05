@@ -1,3 +1,4 @@
+use game_engine::cgmath::Point2;
 use game_engine::gfx::gfx_2d::components_2d::Surface2D;
 #[allow(unused_imports)]
 use game_engine::{
@@ -235,15 +236,15 @@ impl GameObject for UI {
             content: GUIPanelContent::Panels(Color::BLACK, vec![panel_with_text]),
         };
 
-        let mut surface = Surface2D::new(16, 9, Color::BLUE);
+        let mut surface = Surface2D::new(16, 9, Color::WHITE);
         for y in 0..9 {
             for x in 0..16 {
                 let color = if (x + y % 2) % 2 == 0 {
                     Color::BLACK
                 } else {
-                    Color::BLUE
+                    Color::WHITE
                 };
-                surface.set_cell_color(x, y, color);
+                surface.draw_pixel(Point2::new(x, y), color);
             }
         }
 
@@ -287,18 +288,25 @@ impl GameObject for UI {
         // }
 
         let surface = gui.get_panel("Graphics panel");
-        if let Some(GUIPanel { content: GUIPanelContent::Surface2D(surface), .. }) = surface {
+        if let Some(GUIPanel {
+            content: GUIPanelContent::Surface2D(surface),
+            ..
+        }) = surface
+        {
             if input_handler.is_key_down(&VirtualKeyCode::H) {
-                for y in 0..9 {
-                    for x in 0..16 {
-                        let color = if (x + y % 2) % 2 == 0 {
-                            Color::BLACK
-                        } else {
-                            Color::TRANSPARENT
-                        };
-                        surface.set_cell_color(x, y, color);
-                    }
-                }
+                surface.draw_line((0, 0).into(), (5, 0).into(), Color::GREEN);
+            }
+
+            if input_handler.is_key_down(&VirtualKeyCode::V) {
+                surface.draw_line((7, 0).into(), (7, 5).into(), Color::GREEN);
+            }
+
+            if input_handler.is_key_down(&VirtualKeyCode::I) {
+                surface.draw_line((5, 5).into(), (0, 0).into(), Color::RED);
+            }
+
+            if input_handler.is_key_down(&VirtualKeyCode::J) {
+                surface.draw_line((0, 1).into(), (6, 4).into(), Color::BLUE)
             }
         }
     }
@@ -309,11 +317,11 @@ fn main() {
 
     let mut game = Game::new("Test game", 1280, 720, true);
 
-    let game_object = ObjectController::new();
-    game.add_game_object(game_object);
-
-    let camera_controller = CameraController {};
-    game.add_game_object(camera_controller);
+    // let game_object = ObjectController::new();
+    // game.add_game_object(game_object);
+    //
+    // let camera_controller = CameraController {};
+    // game.add_game_object(camera_controller);
 
     let ui = UI {};
     game.add_game_object(ui);

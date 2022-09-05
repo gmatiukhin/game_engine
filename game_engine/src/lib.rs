@@ -30,7 +30,7 @@ pub struct Game {
     game_objects: Vec<Box<dyn GameObject>>,
     window_width: u32,
     window_height: u32,
-    resizable: bool
+    resizable: bool,
 }
 
 impl Game {
@@ -40,7 +40,7 @@ impl Game {
             game_objects: vec![],
             window_width,
             window_height,
-            resizable
+            resizable,
         }
     }
 
