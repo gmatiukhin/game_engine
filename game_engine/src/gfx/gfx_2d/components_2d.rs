@@ -362,7 +362,6 @@ impl Surface2D {
         color: texture::Color,
         fill: bool,
     ) {
-        println!("rect");
         if fill {
             let (x0, x1) = if end.x < start.x {
                 (end.x, start.x)
@@ -461,7 +460,6 @@ impl Surface2D {
         }
     }
 
-    /// Draw triangle filled
     fn draw_triangle_filled(
         &mut self,
         p0: cgmath::Point2<u32>,
@@ -504,7 +502,6 @@ impl Surface2D {
         }
     }
 
-    // Draw bottom-flat triangle
     fn draw_triangle_bottom_flat(
         &mut self,
         p0: cgmath::Point2<u32>,
@@ -529,7 +526,6 @@ impl Surface2D {
         }
     }
 
-    // Draw top-flat triangle
     fn draw_triangle_top_flat(
         &mut self,
         p0: cgmath::Point2<u32>,
