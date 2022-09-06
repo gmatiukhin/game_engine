@@ -362,7 +362,6 @@ impl Surface2D {
         color: texture::Color,
         fill: bool,
     ) {
-        println!("rect");
         if fill {
             let (x0, x1) = if end.x < start.x {
                 (end.x, start.x)
