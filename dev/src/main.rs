@@ -238,17 +238,7 @@ impl GameObject for UI {
             children: vec![panel_with_text],
         };
 
-        let mut surface = Surface2D::new(160, 90, Color::BLUE);
-        for y in 0..360 {
-            for x in 0..720 {
-                let color = if (x + y % 2) % 2 == 0 {
-                    Color::BLACK
-                } else {
-                    Color::WHITE
-                };
-                surface.draw_pixel(Point2::new(x, y), color);
-            }
-        }
+        let surface = Surface2D::new(160, 90, Color::BLUE);
 
         let graphics_panel = GUIPanel {
             name: "Graphics panel".to_string(),
@@ -276,11 +266,27 @@ impl GameObject for UI {
         }) = gui.get_panel("Graphics panel")
         {
             if input_handler.is_key_down(&VirtualKeyCode::C) {
-                surface.draw_circle((80, 45).into(), 20, Color::RED, false);
+                surface.draw_triangle(
+                    Point2::new(30, 30),
+                    Point2::new(140, 0),
+                    Point2::new(70, 60),
+                    Color::GREEN,
+                    false,
+                );
             }
 
             if input_handler.is_key_down(&VirtualKeyCode::F) {
-                surface.draw_circle((80, 45).into(), 20, Color::GREEN, true);
+                surface.draw_triangle(
+                    Point2::new(30, 30),
+                    Point2::new(140, 0),
+                    Point2::new(70, 60),
+                    Color::RED,
+                    true,
+                );
+            }
+
+            if input_handler.is_key_down(&VirtualKeyCode::R) {
+                surface.clear();
             }
         }
     }
