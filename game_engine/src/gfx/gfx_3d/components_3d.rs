@@ -5,15 +5,30 @@ use std::collections::HashMap;
 use std::ops::Range;
 use wgpu::util::DeviceExt;
 
-#[repr(C)]
-#[derive(Debug, Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
+#[derive(Debug, Copy, Clone)]
 pub struct Vertex {
-    pub position: [f32; 3],
+    pub position: cgmath::Vector3<f32>,
     /// In wgpu's coordinate system UV origin is situated in the top left corner
-    pub texture_coordinates: [f32; 2],
+    pub tex_coords: cgmath::Vector2<f32>,
 }
 
-impl Vertex {
+impl From<Vertex> for VertexRaw {
+    fn from(v: Vertex) -> Self {
+        Self {
+            position: [v.position.x, v.position.y, v.position.z],
+            tex_coords: [v.tex_coords.x, v.tex_coords.y],
+        }
+    }
+}
+
+#[repr(C)]
+#[derive(Debug, Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
+pub(super) struct VertexRaw {
+    position: [f32; 3],
+    tex_coords: [f32; 2],
+}
+
+impl VertexRaw {
     pub(super) fn format<'a>() -> wgpu::VertexBufferLayout<'a> {
         const ATTRIBS: [wgpu::VertexAttribute; 2] =
             wgpu::vertex_attr_array![0 => Float32x3, 1 => Float32x2];
@@ -35,7 +50,13 @@ impl Mesh {
     pub(super) fn buffer(&self, device: &wgpu::Device) -> MeshBuffered {
         let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: None,
-            contents: bytemuck::cast_slice(&self.vertices),
+            contents: bytemuck::cast_slice(
+                &(self
+                    .vertices
+                    .iter()
+                    .map(|v| (*v).into())
+                    .collect::<Vec<VertexRaw>>()),
+            ),
             usage: wgpu::BufferUsages::VERTEX,
         });
 

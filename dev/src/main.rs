@@ -21,30 +21,30 @@ use game_engine::{
 };
 use std::f32::consts::FRAC_PI_2;
 
-struct ObjectController {
+struct PrefabController {
     model: Model,
     movable_instance: Option<PrefabInstance>,
     immovable_instance: Option<PrefabInstance>,
 }
 
-impl ObjectController {
+impl PrefabController {
     fn new() -> Self {
         let vertices = vec![
             Vertex {
-                position: [0.0, 1.0, 0.0],
-                texture_coordinates: [0.0, 0.0],
+                position: (0.0, 1.0, 0.0).into(),
+                tex_coords: (0.0, 0.0).into(),
             },
             Vertex {
-                position: [0.0, 0.0, 0.0],
-                texture_coordinates: [0.0, 1.0],
+                position: (0.0, 0.0, 0.0).into(),
+                tex_coords: (0.0, 1.0).into(),
             },
             Vertex {
-                position: [1.0, 0.0, 0.0],
-                texture_coordinates: [1.0, 1.0],
+                position: (1.0, 0.0, 0.0).into(),
+                tex_coords: (1.0, 1.0).into(),
             },
             Vertex {
-                position: [1.0, 1.0, 0.0],
-                texture_coordinates: [1.0, 0.0],
+                position: (1.0, 1.0, 0.0).into(),
+                tex_coords: (1.0, 0.0).into(),
             },
         ];
 
@@ -56,7 +56,7 @@ impl ObjectController {
         let image = load_from_memory(&buffer).unwrap();
 
         let model = Model::new(
-            "Pentagon",
+            "Square Prefab",
             mesh,
             Some(Material::Textured(Image {
                 name: "Stone Bricks".to_string(),
@@ -73,16 +73,17 @@ impl ObjectController {
     }
 }
 
-impl GameObject for ObjectController {
+impl GameObject for PrefabController {
     fn start(&mut self, graphics_engine: &mut GraphicsEngine) {
         let renderer = &mut graphics_engine.renderer_3d;
 
         renderer.add_as_prefab(&self.model);
-        self.immovable_instance = renderer.instantiate_prefab(
-            &self.model.name,
-            &(0.0, 0.0, 0.0).into(),
-            &Quaternion::one(),
-        );
+        // self.immovable_instance = renderer.instantiate_prefab(
+        //     &self.model.name,
+        //     &(0.0, 0.0, 0.0).into(),
+        //     &Quaternion::one(),
+        // );
+
         self.movable_instance = renderer.instantiate_prefab(
             &self.model.name,
             &(0.0, 0.0, 1.0).into(),
@@ -119,6 +120,74 @@ impl GameObject for ObjectController {
             }
 
             renderer.update_prefab_instance(&immovable_instance);
+        }
+    }
+}
+
+struct ModelController {}
+
+impl GameObject for ModelController {
+    fn start(&mut self, graphics_engine: &mut GraphicsEngine) {
+        let vertices = vec![
+            Vertex {
+                position: (0.0, 1.0, 0.0).into(),
+                tex_coords: (0.0, 0.0).into(),
+            },
+            Vertex {
+                position: (0.0, 0.0, 0.0).into(),
+                tex_coords: (0.0, 1.0).into(),
+            },
+            Vertex {
+                position: (1.0, 0.0, 0.0).into(),
+                tex_coords: (1.0, 1.0).into(),
+            },
+            Vertex {
+                position: (1.0, 1.0, 0.0).into(),
+                tex_coords: (1.0, 0.0).into(),
+            },
+        ];
+
+        let indices: Vec<u32> = vec![0, 1, 2, 0, 2, 3];
+
+        let mesh = Mesh { vertices, indices };
+
+        let buffer = std::fs::read("./dev/res/textures/stone_bricks.jpg").unwrap();
+        let image = load_from_memory(&buffer).unwrap();
+
+        let model = Model::new(
+            "Square model",
+            mesh,
+            Some(Material::Textured(Image {
+                name: "Stone Bricks".to_string(),
+                file: image,
+            })),
+            None,
+        );
+
+        let renderer = &mut graphics_engine.renderer_3d;
+
+        renderer.add_model(model);
+    }
+
+    fn update(
+        &mut self,
+        graphics_engine: &mut GraphicsEngine,
+        input_handler: &mut InputHandler,
+        dt: f32,
+    ) {
+        let renderer = &mut graphics_engine.renderer_3d;
+        if let Some(Model { mesh, .. }) = renderer.get_model("Square model") {
+            if input_handler.is_key_held(&VirtualKeyCode::I) {
+                mesh.vertices[0].position[1] += 1.0 * dt;
+            }
+
+            if input_handler.is_key_held(&VirtualKeyCode::J) {
+                mesh.vertices[0].position[1] += -1.0 * dt;
+            }
+        }
+
+        if input_handler.is_key_down(&VirtualKeyCode::K) {
+            renderer.remove_model("Square model");
         }
     }
 }
@@ -229,7 +298,7 @@ impl GameObject for UI {
             children: vec![],
         };
 
-        let _colored_panel = GUIPanel {
+        let colored_panel = GUIPanel {
             name: "Test color".to_string(),
             active: true,
             position: GUITransform::Relative(0.01, 0.01),
@@ -240,7 +309,7 @@ impl GameObject for UI {
 
         let surface = Surface2D::new(160, 90, Color::BLUE);
 
-        let graphics_panel = GUIPanel {
+        let _graphics_panel = GUIPanel {
             name: "Graphics panel".to_string(),
             active: true,
             position: GUITransform::Relative(0.0, 0.0),
@@ -249,7 +318,7 @@ impl GameObject for UI {
             children: vec![],
         };
 
-        gui.add_top_level_panels(vec![graphics_panel]);
+        gui.add_top_level_panels(vec![colored_panel]);
     }
 
     fn update(
@@ -260,33 +329,9 @@ impl GameObject for UI {
     ) {
         let gui = &mut graphics_engine.renderer_2d;
 
-        if let Some(GUIPanel {
-            content: GUIPanelContent::Surface2D(surface),
-            ..
-        }) = gui.get_panel("Graphics panel")
-        {
-            if input_handler.is_key_down(&VirtualKeyCode::C) {
-                surface.draw_triangle(
-                    Point2::new(30, 30),
-                    Point2::new(140, 0),
-                    Point2::new(70, 60),
-                    Color::GREEN,
-                    false,
-                );
-            }
-
-            if input_handler.is_key_down(&VirtualKeyCode::F) {
-                surface.draw_triangle(
-                    Point2::new(30, 30),
-                    Point2::new(140, 0),
-                    Point2::new(70, 60),
-                    Color::RED,
-                    true,
-                );
-            }
-
-            if input_handler.is_key_down(&VirtualKeyCode::R) {
-                surface.clear();
+        if let Some(panel) = gui.get_panel("Colored panel") {
+            if input_handler.is_key_down(&VirtualKeyCode::Space) {
+                panel.content = GUIPanelContent::Color(Color::RED);
             }
         }
     }
@@ -297,11 +342,14 @@ fn main() {
 
     let mut game = Game::new("Test game", 1280, 720, true);
 
-    // let game_object = ObjectController::new();
-    // game.add_game_object(game_object);
-    //
-    // let camera_controller = CameraController {};
-    // game.add_game_object(camera_controller);
+    let prefab_controller = PrefabController::new();
+    game.add_game_object(prefab_controller);
+
+    let model_controller = ModelController {};
+    game.add_game_object(model_controller);
+
+    let camera_controller = CameraController {};
+    game.add_game_object(camera_controller);
 
     let ui = UI {};
     game.add_game_object(ui);

@@ -19,7 +19,9 @@ pub struct Renderer3D {
     camera_state: CameraState,
     texture_bind_group_layout: wgpu::BindGroupLayout,
 
-    models: HashMap<String, (wgpu::RenderPipeline, ModelBuffered)>,
+    models: HashMap<String, (bool, Model)>,
+    buffered_models: HashMap<String, (wgpu::RenderPipeline, ModelBuffered)>,
+
     prefabs: HashMap<String, (wgpu::RenderPipeline, Prefab)>,
 }
 
@@ -46,6 +48,7 @@ impl Renderer3D {
             camera_state,
             texture_bind_group_layout,
             models: HashMap::new(),
+            buffered_models: HashMap::new(),
             prefabs: HashMap::new(),
         }
     }
@@ -122,13 +125,13 @@ impl Renderer3D {
                     topology: wgpu::PrimitiveTopology::TriangleList,
                     strip_index_format: None,
                     front_face: wgpu::FrontFace::Ccw,
-                    cull_mode: Some(wgpu::Face::Back),
+                    cull_mode: None,
                     unclipped_depth: false,
                     polygon_mode: wgpu::PolygonMode::Fill,
                     conservative: false,
                 },
                 depth_stencil: Some(wgpu::DepthStencilState {
-                    format: super::texture::DEPTH_TEXTURE_FORMAT,
+                    format: texture::DEPTH_TEXTURE_FORMAT,
 
                     depth_write_enabled: true,
                     depth_compare: wgpu::CompareFunction::Less,
@@ -155,7 +158,7 @@ impl Renderer3D {
                 view: &view,
                 resolve_target: None,
                 ops: wgpu::Operations {
-                    load: wgpu::LoadOp::Clear(crate::gfx::texture::Color {
+                    load: wgpu::LoadOp::Clear(texture::Color {
                         r: 0.1,
                         g: 0.2,
                         b: 0.3,
@@ -175,7 +178,7 @@ impl Renderer3D {
         });
         render_pass.set_bind_group(0, &self.camera_state.camera_bind_group, &[]);
 
-        for (_, (pipeline, model)) in &self.models {
+        for (_, (pipeline, model)) in &self.buffered_models {
             render_pass.set_pipeline(pipeline);
             model.render(&mut render_pass, 0..1);
         }
@@ -199,6 +202,7 @@ impl Renderer3D {
 
     pub(crate) fn update(&mut self) {
         self.camera_state.update(&self.queue);
+        self.buffer_models();
     }
 
     pub fn camera(&mut self) -> &mut Camera {
@@ -206,41 +210,50 @@ impl Renderer3D {
     }
 }
 
+/// Methods related to models
 impl Renderer3D {
-    pub fn add_model(&mut self, model: &Model) {
-        let model = model.buffer(&self.device, &self.queue, &self.texture_bind_group_layout);
-
-        let render_pipeline = self.create_pipeline(
-            &[Vertex::format()],
-            &self.default_vertex_shader_module(),
-            &model
-                .shader_module
-                .as_ref()
-                .unwrap_or(&self.default_fragment_shader_module()),
-            &format!("Render pipeline for model {}", model.name),
-        );
-
-        self.models
-            .insert(model.name.clone(), (render_pipeline, model));
+    pub fn add_model(&mut self, model: Model) {
+        self.models.insert(model.name.clone(), (true, model));
     }
 
-    pub fn update_model(&mut self, model: &Model) {
-        self.models.entry(model.name.clone()).and_modify(|(_, m)| {
-            *m = model.buffer(&self.device, &self.queue, &self.texture_bind_group_layout)
-        });
+    pub fn get_model(&mut self, name: &str) -> Option<&mut Model> {
+        self.models.get_mut(name).map(|(_, m)| m)
     }
 
-    pub fn delete_model(&mut self, model: Model) {
-        self.models.remove(&model.name);
+    pub fn remove_model(&mut self, name: &str) {
+        self.models.remove(name);
+        self.buffered_models.remove(name);
+    }
+
+    fn buffer_models(&mut self) {
+        for (name, (should_buffer, model)) in &self.models {
+            if *should_buffer {
+                let buff_model =
+                    model.buffer(&self.device, &self.queue, &self.texture_bind_group_layout);
+                let render_pipeline = self.create_pipeline(
+                    &[VertexRaw::format()],
+                    &self.default_vertex_shader_module(),
+                    &buff_model
+                        .shader_module
+                        .as_ref()
+                        .unwrap_or(&self.default_fragment_shader_module()),
+                    &format!("Render pipeline for model {}", buff_model.name),
+                );
+
+                self.buffered_models
+                    .insert(name.clone(), (render_pipeline, buff_model));
+            }
+        }
     }
 }
 
+/// Methods related to prefabs
 impl Renderer3D {
     pub fn add_as_prefab(&mut self, model: &Model) -> String {
         let model = model.buffer(&self.device, &self.queue, &self.texture_bind_group_layout);
 
         let render_pipeline = self.create_pipeline(
-            &[Vertex::format(), InstanceTransformRaw::format()],
+            &[VertexRaw::format(), InstanceTransformRaw::format()],
             &self.instance_vertex_shader_module(),
             &model
                 .shader_module
