@@ -1,11 +1,9 @@
-use game_engine::cgmath::Point2;
-use game_engine::gfx::gfx_2d::components_2d::Surface2D;
 #[allow(unused_imports)]
 use game_engine::{
-    cgmath::{Deg, InnerSpace, One, Point3, Quaternion, Rad, Vector3},
+    cgmath::{Deg, InnerSpace, One, Point2, Point3, Quaternion, Rad, Vector3},
     gfx::{
         gfx_2d::{
-            components_2d::{GUIPanel, GUIPanelContent, GUITransform},
+            components_2d::{GUIPanel, GUIPanelContent, GUITransform, Surface2D},
             text::{FontParameters, TextParameters},
         },
         gfx_3d::{
@@ -337,6 +335,25 @@ impl GameObject for UI {
     }
 }
 
+struct GameController {}
+
+impl GameObject for GameController {
+    fn update(
+        &mut self,
+        _graphics_engine: &mut GraphicsEngine,
+        input_handler: &mut InputHandler,
+        _dt: f32,
+    ) {
+        if input_handler.is_key_down(&VirtualKeyCode::Escape) {
+            Game::exit();
+        }
+    }
+
+    fn end(&mut self) {
+        println!("Game ended");
+    }
+}
+
 fn main() {
     env_logger::init();
 
@@ -353,6 +370,9 @@ fn main() {
 
     let ui = UI {};
     game.add_game_object(ui);
+
+    let game_controller = GameController {};
+    game.add_game_object(game_controller);
 
     game.run();
 }
