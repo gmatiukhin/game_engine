@@ -15,14 +15,18 @@ use gfx::GraphicsEngine;
 
 pub mod util;
 
+#[allow(unused_variables)]
 pub trait GameObject {
-    fn start(&mut self, graphics_engine: &mut GraphicsEngine);
+    fn start(&mut self, graphics_engine: &mut GraphicsEngine) {}
+
     fn update(
         &mut self,
         graphics_engine: &mut GraphicsEngine,
         input_handler: &mut InputHandler,
         dt: f32,
     );
+
+    fn end(&mut self) {}
 }
 
 pub struct Game {
@@ -32,6 +36,8 @@ pub struct Game {
     window_height: u32,
     resizable: bool,
 }
+
+static mut EXIT_GAME: bool = false;
 
 impl Game {
     pub fn new(title: &str, window_width: u32, window_height: u32, resizable: bool) -> Self {
@@ -65,6 +71,14 @@ impl Game {
         for go in &mut self.game_objects {
             go.start(&mut graphics_engine);
         }
+
+        unsafe {
+            if EXIT_GAME {
+                self.call_end();
+                return;
+            }
+        }
+
         graphics_engine.update();
 
         let mut last_time = std::time::Instant::now();
@@ -73,7 +87,10 @@ impl Game {
                 Event::WindowEvent { window_id, event } if window_id == window.id() => {
                     input_handler.accept_input(&event);
                     match event {
-                        WindowEvent::CloseRequested => *control_flow = ControlFlow::Exit,
+                        WindowEvent::CloseRequested => {
+                            self.call_end();
+                            *control_flow = ControlFlow::Exit
+                        },
                         WindowEvent::Resized(physical_size) => {
                             graphics_engine.resize(physical_size);
                         }
@@ -91,6 +108,14 @@ impl Game {
                     for go in &mut self.game_objects {
                         go.update(&mut graphics_engine, &mut input_handler, dt.as_secs_f32());
                     }
+
+                    unsafe {
+                        if EXIT_GAME {
+                            self.call_end();
+                            *control_flow = ControlFlow::Exit;
+                        }
+                    }
+                    
                     input_handler.update_input_state();
                     graphics_engine.update();
 
@@ -109,5 +134,17 @@ impl Game {
                 _ => {}
             }
         })
+    }
+    
+    pub fn exit() {
+        unsafe {
+            EXIT_GAME = true;
+        }
+    }
+
+    fn call_end(&mut self) {
+        for go in &mut self.game_objects {
+            go.end();
+        }
     }
 }
