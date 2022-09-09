@@ -280,7 +280,7 @@ impl GameObject for CameraController {
 
 struct UI {
     sprite: RgbaImage,
-    position: Vector2<f32>,
+    position: Point2<f32>,
 }
 
 impl UI {
@@ -290,7 +290,7 @@ impl UI {
             *pixel = Rgba([(x * 25) as u8, (y * 25) as u8, 0, 255]);
         }
 
-        Self { sprite, position: Vector2::new(0.0, 0.0) }
+        Self { sprite, position: Point2::new(0.0, 0.0) }
     }
 }
 
@@ -346,22 +346,26 @@ impl GameObject for UI {
             surface.clear();
 
             // Move sprite up, down, left, right using arrow keys
-            if input_handler.is_key_held(&VirtualKeyCode::Up) {
-                self.position.y -= 10.0 * dt;
-            }
-            if input_handler.is_key_held(&VirtualKeyCode::Down) {
-                self.position.y += 10.0 * dt;
-            }
-            if input_handler.is_key_held(&VirtualKeyCode::Left) {
-                self.position.x -= 10.0 * dt;
-            }
-            if input_handler.is_key_held(&VirtualKeyCode::Right) {
-                self.position.x += 10.0 * dt;
+            let mut direction = Vector2::new(
+                input_handler.is_key_held(&VirtualKeyCode::Right) as i32 as f32
+                    - input_handler.is_key_held(&VirtualKeyCode::Left) as i32 as f32,
+                input_handler.is_key_held(&VirtualKeyCode::Down) as i32 as f32
+                    - input_handler.is_key_held(&VirtualKeyCode::Up) as i32 as f32,
+            ).normalize();
+
+            if direction.x.is_nan() || direction.y.is_nan() {
+                direction = Vector2::new(0.0, 0.0);
             }
 
-            self.position = self.position;
+            let mut speed: f32 = 50.0;
+            if input_handler.is_key_held(&VirtualKeyCode::LShift) {
+                speed *= 2.0;
+            }
 
-            surface.draw_sprite(&self.sprite, (self.position.x as u32, self.position.y as u32).into());
+            direction *= speed * dt;
+            self.position += direction;
+
+            surface.draw_sprite(&self.sprite, (self.position.x as i32, self.position.y as i32).into());
         }
     }
 }

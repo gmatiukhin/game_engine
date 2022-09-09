@@ -233,26 +233,37 @@ impl Surface2D {
     }
 
     /// Draws a point on the surface, it is possible to draw outside the surface
-    pub fn draw_point(&mut self, position: cgmath::Point2<u32>, color: texture::Color) {
-        if position.x >= self.width || position.y >= self.height {
+    pub fn draw_color_point(&mut self, position: cgmath::Point2<i32>, color: texture::Color) {
+        if position.x as u32 >= self.width || position.y as u32 >= self.height {
             return;
         }
         self.image.put_pixel(
-            position.x,
-            position.y,
+            position.x as u32,
+            position.y as u32,
             crate::util::from_color_to_rgba(&color),
+        );
+    }
+
+    pub fn draw_rgba_point(&mut self, position: cgmath::Point2<i32>, rgba: image::Rgba<u8>) {
+        if position.x as u32 >= self.width || position.y as u32 >= self.height {
+            return;
+        }
+        self.image.put_pixel(
+            position.x as u32,
+            position.y as u32,
+            rgba,
         );
     }
 
     /// Draws line from `start` to `end` using [Bresenham's line algorithm](https://en.wikipedia.org/wiki/Bresenham%27s_line_algorithm) with optimisations
     pub fn draw_line(
         &mut self,
-        start: cgmath::Point2<u32>,
-        end: cgmath::Point2<u32>,
+        start: cgmath::Point2<i32>,
+        end: cgmath::Point2<i32>,
         color: texture::Color,
     ) {
-        let dx = i32::abs(end.x as i32 - start.x as i32);
-        let dy = i32::abs(end.y as i32 - start.y as i32);
+        let dx = i32::abs(end.x - start.x);
+        let dy = i32::abs(end.y - start.y);
 
         // Optimisation for straight vertical line
         if dx == 0 {
@@ -263,7 +274,7 @@ impl Surface2D {
             };
 
             for y in y0..=y1 {
-                self.draw_point((start.x, y).into(), color);
+                self.draw_color_point((start.x, y).into(), color);
             }
             return;
         }
@@ -277,7 +288,7 @@ impl Surface2D {
             };
 
             for x in x0..=x1 {
-                self.draw_point((x, start.y).into(), color);
+                self.draw_color_point((x, start.y).into(), color);
             }
             return;
         }
@@ -300,12 +311,12 @@ impl Surface2D {
 
     fn draw_line_high(
         &mut self,
-        start: cgmath::Point2<u32>,
-        end: cgmath::Point2<u32>,
+        start: cgmath::Point2<i32>,
+        end: cgmath::Point2<i32>,
         color: texture::Color,
     ) {
-        let mut dx = end.x as i32 - start.x as i32;
-        let dy = end.y as i32 - start.y as i32;
+        let mut dx = end.x - start.x;
+        let dy = end.y - start.y;
         let mut xi = 1;
 
         if dx < 0 {
@@ -313,10 +324,10 @@ impl Surface2D {
             dx = -dx;
         }
         let mut d = (2 * dx) - dy;
-        let mut x = start.x as i32;
+        let mut x = start.x;
 
         for y in start.y..=end.y {
-            self.draw_point((x as u32, y).into(), color);
+            self.draw_color_point((x, y).into(), color);
 
             if d > 0 {
                 x += xi;
@@ -329,12 +340,12 @@ impl Surface2D {
 
     fn draw_line_low(
         &mut self,
-        start: cgmath::Point2<u32>,
-        end: cgmath::Point2<u32>,
+        start: cgmath::Point2<i32>,
+        end: cgmath::Point2<i32>,
         color: texture::Color,
     ) {
-        let dx = end.x as i32 - start.x as i32;
-        let mut dy = end.y as i32 - start.y as i32;
+        let dx = end.x - start.x;
+        let mut dy = end.y - start.y;
         let mut yi = 1;
 
         if dy < 0 {
@@ -343,10 +354,10 @@ impl Surface2D {
         }
 
         let mut d = (2 * dy) - dx;
-        let mut y = start.y as i32;
+        let mut y = start.y;
 
         for x in start.x..=end.x {
-            self.draw_point((x, y as u32).into(), color);
+            self.draw_color_point((x, y).into(), color);
             if d > 0 {
                 y += yi;
                 d += 2 * (dy - dx);
@@ -358,8 +369,8 @@ impl Surface2D {
 
     pub fn draw_rectangle(
         &mut self,
-        start: cgmath::Point2<u32>,
-        end: cgmath::Point2<u32>,
+        start: cgmath::Point2<i32>,
+        end: cgmath::Point2<i32>,
         color: texture::Color,
         fill: bool,
     ) {
@@ -378,7 +389,7 @@ impl Surface2D {
 
             for y in y0..=y1 {
                 for x in x0..=x1 {
-                    self.draw_point((x, y).into(), color);
+                    self.draw_color_point((x, y).into(), color);
                 }
             }
         } else {
@@ -392,12 +403,12 @@ impl Surface2D {
     /// Draws circle using [modified Bresenham's circle drawing algorithm](https://weber.itn.liu.se/~stegu/circle/circlealgorithm.pdf)
     pub fn draw_circle(
         &mut self,
-        center: cgmath::Point2<u32>,
+        center: cgmath::Point2<i32>,
         radius: u32,
         color: texture::Color,
         fill: bool,
     ) {
-        let mut x: i32 = 0;
+        let mut x = 0;
         let mut y: i32 = radius as i32;
         let mut d = 5 - 4 * radius as i32;
         let mut da = 12;
@@ -424,31 +435,31 @@ impl Surface2D {
     }
 
     #[rustfmt::skip]
-    fn draw_circle_octants(&mut self, center: cgmath::Point2<u32>, x: i32, y: i32, color: texture::Color) {
-        self.draw_point(((center.x as i32 + x) as u32, (center.y as i32 + y) as u32).into(), color);
-        self.draw_point(((center.x as i32 - x) as u32, (center.y as i32 + y) as u32).into(), color);
-        self.draw_point(((center.x as i32 + x) as u32, (center.y as i32 - y) as u32).into(), color);
-        self.draw_point(((center.x as i32 - x) as u32, (center.y as i32 - y) as u32).into(), color);
-        self.draw_point(((center.x as i32 + y) as u32, (center.y as i32 + x) as u32).into(), color);
-        self.draw_point(((center.x as i32 - y) as u32, (center.y as i32 + x) as u32).into(), color);
-        self.draw_point(((center.x as i32 + y) as u32, (center.y as i32 - x) as u32).into(), color);
-        self.draw_point(((center.x as i32 - y) as u32, (center.y as i32 - x) as u32).into(), color);
+    fn draw_circle_octants(&mut self, center: cgmath::Point2<i32>, x: i32, y: i32, color: texture::Color) {
+        self.draw_color_point((center.x + x, center.y + y).into(), color);
+        self.draw_color_point((center.x - x, center.y + y).into(), color);
+        self.draw_color_point((center.x + x, center.y - y).into(), color);
+        self.draw_color_point((center.x - x, center.y - y).into(), color);
+        self.draw_color_point((center.x + y, center.y + x).into(), color);
+        self.draw_color_point((center.x - y, center.y + x).into(), color);
+        self.draw_color_point((center.x + y, center.y - x).into(), color);
+        self.draw_color_point((center.x - y, center.y - x).into(), color);
     }
 
     #[rustfmt::skip]
-    fn draw_circle_octants_filled(&mut self, center: cgmath::Point2<u32>, x: i32, y: i32, color: texture::Color) {
-        self.draw_line(((center.x as i32 - x) as u32, (center.y as i32 + y) as u32).into(), ((center.x as i32 + x) as u32, (center.y as i32 + y) as u32).into(), color);
-        self.draw_line(((center.x as i32 - x) as u32, (center.y as i32 - y) as u32).into(), ((center.x as i32 + x) as u32, (center.y as i32 - y) as u32).into(), color);
-        self.draw_line(((center.x as i32 - y) as u32, (center.y as i32 + x) as u32).into(), ((center.x as i32 + y) as u32, (center.y as i32 + x) as u32).into(), color);
-        self.draw_line(((center.x as i32 - y) as u32, (center.y as i32 - x) as u32).into(), ((center.x as i32 + y) as u32, (center.y as i32 - x) as u32).into(), color);
+    fn draw_circle_octants_filled(&mut self, center: cgmath::Point2<i32>, x: i32, y: i32, color: texture::Color) {
+        self.draw_line((center.x - x, center.y + y).into(), (center.x + x, center.y + y).into(), color);
+        self.draw_line((center.x - x, center.y - y).into(), (center.x + x, center.y - y).into(), color);
+        self.draw_line((center.x - y, center.y + x).into(), (center.x + y, center.y + x).into(), color);
+        self.draw_line((center.x - y, center.y - x).into(), (center.x + y, center.y - x).into(), color);
     }
 
     /// Draw triangle using [Standard Algorithm](http://www.sunshine2k.de/coding/java/TriangleRasterization/TriangleRasterization.html#:~:text=II.%20Standard%20Algorithm)
     pub fn draw_triangle(
         &mut self,
-        p0: cgmath::Point2<u32>,
-        p1: cgmath::Point2<u32>,
-        p2: cgmath::Point2<u32>,
+        p0: cgmath::Point2<i32>,
+        p1: cgmath::Point2<i32>,
+        p2: cgmath::Point2<i32>,
         color: texture::Color,
         fill: bool,
     ) {
@@ -463,9 +474,9 @@ impl Surface2D {
 
     fn draw_triangle_filled(
         &mut self,
-        p0: cgmath::Point2<u32>,
-        p1: cgmath::Point2<u32>,
-        p2: cgmath::Point2<u32>,
+        p0: cgmath::Point2<i32>,
+        p1: cgmath::Point2<i32>,
+        p2: cgmath::Point2<i32>,
         color: texture::Color,
     ) {
         // Sort vertices by y-coordinate ascending
@@ -494,7 +505,7 @@ impl Surface2D {
             // General case - split the triangle in a top-flat and bottom-flat one
             // Floating point calculation is required here, because not every triangle configuration can be correctly split using integer division
             let p3 = cgmath::Point2::new(
-                (p0.x as f32 + ((p1.y as f32 - p0.y as f32) / (p2.y as f32 - p0.y as f32) * (p2.x as f32 - p0.x as f32))) as u32,
+                (p0.x as f32 + ((p1.y as f32 - p0.y as f32) / (p2.y as f32 - p0.y as f32) * (p2.x as f32 - p0.x as f32))) as i32,
                 p1.y,
             );
             self.draw_triangle_bottom_flat(p0, p1, p3, color);
@@ -504,21 +515,21 @@ impl Surface2D {
 
     fn draw_triangle_bottom_flat(
         &mut self,
-        p0: cgmath::Point2<u32>,
-        p1: cgmath::Point2<u32>,
-        p2: cgmath::Point2<u32>,
+        p0: cgmath::Point2<i32>,
+        p1: cgmath::Point2<i32>,
+        p2: cgmath::Point2<i32>,
         color: texture::Color,
     ) {
-        let inv_slope1 = (p1.x as i32 - p0.x as i32) as f32 / (p1.y as i32 - p0.y as i32) as f32;
-        let inv_slope2 = (p2.x as i32 - p0.x as i32) as f32 / (p2.y as i32 - p0.y as i32) as f32;
+        let inv_slope1 = (p1.x - p0.x) as f32 / (p1.y - p0.y) as f32;
+        let inv_slope2 = (p2.x - p0.x) as f32 / (p2.y - p0.y) as f32;
 
         let mut current_x1 = p0.x as f32;
         let mut current_x2 = p0.x as f32;
 
         for scanline_y in p0.y..=p1.y {
             self.draw_line(
-                cgmath::Point2::new(current_x1 as u32, scanline_y),
-                cgmath::Point2::new(current_x2 as u32, scanline_y),
+                cgmath::Point2::new(current_x1 as i32, scanline_y),
+                cgmath::Point2::new(current_x2 as i32, scanline_y),
                 color,
             );
             current_x1 += inv_slope1;
@@ -528,21 +539,21 @@ impl Surface2D {
 
     fn draw_triangle_top_flat(
         &mut self,
-        p0: cgmath::Point2<u32>,
-        p1: cgmath::Point2<u32>,
-        p2: cgmath::Point2<u32>,
+        p0: cgmath::Point2<i32>,
+        p1: cgmath::Point2<i32>,
+        p2: cgmath::Point2<i32>,
         color: texture::Color,
     ) {
-        let inv_slope1 = (p2.x as i32 - p0.x as i32) as f32 / (p2.y as i32 - p0.y as i32) as f32;
-        let inv_slope2 = (p2.x as i32 - p1.x as i32) as f32 / (p2.y as i32 - p1.y as i32) as f32;
+        let inv_slope1 = (p2.x - p0.x) as f32 / (p2.y - p0.y) as f32;
+        let inv_slope2 = (p2.x - p1.x) as f32 / (p2.y - p1.y) as f32;
 
         let mut current_x1 = p2.x as f32;
         let mut current_x2 = p2.x as f32;
 
         for scanline_y in (p0.y..p2.y).rev() {
             self.draw_line(
-                cgmath::Point2::new(current_x1 as u32, scanline_y),
-                cgmath::Point2::new(current_x2 as u32, scanline_y),
+                cgmath::Point2::new(current_x1 as i32, scanline_y),
+                cgmath::Point2::new(current_x2 as i32, scanline_y),
                 color,
             );
             current_x1 -= inv_slope1;
@@ -557,13 +568,11 @@ impl Surface2D {
     }
 
     /// Draws sprite given its top left corner as position
-    pub fn draw_sprite(&mut self, sprite: &image::RgbaImage, position: cgmath::Point2<u32>) {
+    pub fn draw_sprite(&mut self, sprite: &image::RgbaImage, position: cgmath::Point2<i32>) {
         for (x, y, pixel) in sprite.enumerate_pixels() {
-            let x = x + position.x;
-            let y = y + position.y;
-            if x < self.image.width() && y < self.image.height() {
-                self.image.put_pixel(x, y, *pixel);
-            }
+            let x = x as i32 + position.x;
+            let y = y as i32 + position.y;
+            self.draw_rgba_point((x, y).into(), *pixel);
         }
     }
 
