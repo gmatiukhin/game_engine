@@ -232,6 +232,7 @@ impl Surface2D {
         }
     }
 
+    /// Draws a point on the surface, it is possible to draw outside the surface
     pub fn draw_point(&mut self, position: cgmath::Point2<u32>, color: texture::Color) {
         if position.x >= self.width || position.y >= self.height {
             return;
@@ -491,10 +492,9 @@ impl Surface2D {
             self.draw_triangle_top_flat(p0, p1, p2, color);
         } else {
             // General case - split the triangle in a top-flat and bottom-flat one
+            // Floating point calculation is required here, because not every triangle configuration can be correctly split using integer division
             let p3 = cgmath::Point2::new(
-                (p0.x as f32
-                    + ((p1.y as i32 - p0.y as i32) as f32 / (p2.y as i32 - p0.y as i32) as f32
-                        * (p2.x as i32 - p0.x as i32) as f32)) as u32,
+                (p0.x as f32 + ((p1.y as f32 - p0.y as f32) / (p2.y as f32 - p0.y as f32) * (p2.x as f32 - p0.x as f32))) as u32,
                 p1.y,
             );
             self.draw_triangle_bottom_flat(p0, p1, p3, color);
@@ -553,6 +553,17 @@ impl Surface2D {
     pub fn clear(&mut self) {
         for el in self.image.pixels_mut() {
             *el = self.default_color;
+        }
+    }
+
+    /// Draws sprite given its top left corner as position
+    pub fn draw_sprite(&mut self, sprite: &image::RgbaImage, position: cgmath::Point2<u32>) {
+        for (x, y, pixel) in sprite.enumerate_pixels() {
+            let x = x + position.x;
+            let y = y + position.y;
+            if x < self.image.width() && y < self.image.height() {
+                self.image.put_pixel(x, y, *pixel);
+            }
         }
     }
 

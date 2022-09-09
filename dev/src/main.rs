@@ -13,11 +13,12 @@ use game_engine::{
         texture::{Color, Image, Material, Shader, Texture},
         GraphicsEngine,
     },
-    image::load_from_memory,
+    image::{Rgba, RgbaImage, load_from_memory},
     input::{InputHandler, MouseButton, VirtualKeyCode},
     Game, GameObject,
 };
 use std::f32::consts::FRAC_PI_2;
+use game_engine::cgmath::Vector2;
 
 struct PrefabController {
     model: Model,
@@ -277,7 +278,21 @@ impl GameObject for CameraController {
     }
 }
 
-struct UI {}
+struct UI {
+    sprite: RgbaImage,
+    position: Vector2<f32>,
+}
+
+impl UI {
+    fn new() -> Self {
+        let mut sprite = RgbaImage::new(10, 10);
+        for (x, y, pixel) in sprite.enumerate_pixels_mut() {
+            *pixel = Rgba([(x * 25) as u8, (y * 25) as u8, 0, 255]);
+        }
+
+        Self { sprite, position: Vector2::new(0.0, 0.0) }
+    }
+}
 
 impl GameObject for UI {
     fn start(&mut self, graphics_engine: &mut GraphicsEngine) {
@@ -296,7 +311,7 @@ impl GameObject for UI {
             children: vec![],
         };
 
-        let colored_panel = GUIPanel {
+        let _colored_panel = GUIPanel {
             name: "Test color".to_string(),
             active: true,
             position: GUITransform::Relative(0.01, 0.01),
@@ -316,21 +331,37 @@ impl GameObject for UI {
             children: vec![],
         };
 
-        gui.add_top_level_panels(vec![colored_panel]);
+        gui.add_top_level_panels(vec![_graphics_panel]);
     }
 
     fn update(
         &mut self,
         graphics_engine: &mut GraphicsEngine,
         input_handler: &mut InputHandler,
-        _dt: f32,
+        dt: f32,
     ) {
         let gui = &mut graphics_engine.renderer_2d;
 
-        if let Some(panel) = gui.get_panel("Colored panel") {
-            if input_handler.is_key_down(&VirtualKeyCode::Space) {
-                panel.content = GUIPanelContent::Color(Color::RED);
+        if let Some(GUIPanel { content : GUIPanelContent::Surface2D(surface), ..}) = gui.get_panel("Graphics panel") {
+            surface.clear();
+
+            // Move sprite up, down, left, right using arrow keys
+            if input_handler.is_key_held(&VirtualKeyCode::Up) {
+                self.position.y -= 10.0 * dt;
             }
+            if input_handler.is_key_held(&VirtualKeyCode::Down) {
+                self.position.y += 10.0 * dt;
+            }
+            if input_handler.is_key_held(&VirtualKeyCode::Left) {
+                self.position.x -= 10.0 * dt;
+            }
+            if input_handler.is_key_held(&VirtualKeyCode::Right) {
+                self.position.x += 10.0 * dt;
+            }
+
+            self.position = self.position;
+
+            surface.draw_sprite(&self.sprite, (self.position.x as u32, self.position.y as u32).into());
         }
     }
 }
@@ -359,16 +390,16 @@ fn main() {
 
     let mut game = Game::new("Test game", 1280, 720, true);
 
-    let prefab_controller = PrefabController::new();
-    game.add_game_object(prefab_controller);
+    // let prefab_controller = PrefabController::new();
+    // game.add_game_object(prefab_controller);
+    //
+    // let model_controller = ModelController {};
+    // game.add_game_object(model_controller);
+    //
+    // let camera_controller = CameraController {};
+    // game.add_game_object(camera_controller);
 
-    let model_controller = ModelController {};
-    game.add_game_object(model_controller);
-
-    let camera_controller = CameraController {};
-    game.add_game_object(camera_controller);
-
-    let ui = UI {};
+    let ui = UI::new();
     game.add_game_object(ui);
 
     let game_controller = GameController {};
