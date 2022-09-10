@@ -10,8 +10,6 @@ pub enum GUITransform {
 }
 
 pub enum GUIPanelContent {
-    Image(texture::Image),
-    Color(texture::Color),
     Text(super::text::TextParameters),
     Surface2D(Surface2D),
 }
@@ -110,9 +108,6 @@ impl GUIPanel {
         });
 
         let texture = match &mut self.content {
-            GUIPanelContent::Image(img) => {
-                texture::Texture::from_image(device, queue, &img.file, &img.name, false)
-            }
             GUIPanelContent::Text(text) => {
                 let width: u32 = (right - left) as u32;
                 let height: u32 = (bottom - top) as u32;
@@ -120,7 +115,6 @@ impl GUIPanel {
 
                 texture::Texture::from_bytes_rgba(device, queue, data, width, height)
             }
-            GUIPanelContent::Color(color) => texture::Texture::from_color(device, queue, color),
             GUIPanelContent::Surface2D(surface) => {
                 let image = surface.image();
                 texture::Texture::from_image(&device, &queue, &image, "Surface image", true)
@@ -227,6 +221,32 @@ impl Surface2D {
         Self {
             width,
             height,
+            default_color,
+            image,
+        }
+    }
+
+    pub fn from_image(image: image::RgbaImage) -> Self {
+        let (width, height) = image.dimensions();
+
+        Self {
+            width,
+            height,
+            default_color: image::Rgba([0, 0, 0, 0]),
+            image,
+        }
+    }
+
+    pub fn from_color(color: texture::Color) -> Self {
+        let default_color = crate::util::from_color_to_rgba(&color);
+        let mut image: image::RgbaImage = image::ImageBuffer::new(1, 1);
+        for pixel in image.pixels_mut() {
+            *pixel = default_color;
+        }
+
+        Self {
+            width: 1,
+            height: 1,
             default_color,
             image,
         }

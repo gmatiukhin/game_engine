@@ -316,7 +316,7 @@ impl GameObject for UI {
             active: true,
             position: GUITransform::Relative(0.01, 0.01),
             dimensions: GUITransform::Relative(0.3, 0.7),
-            content: GUIPanelContent::Color(Color::BLACK),
+            content: GUIPanelContent::Surface2D(Surface2D::from_color(Color::BLACK)),
             children: vec![panel_with_text],
         };
 
@@ -331,7 +331,7 @@ impl GameObject for UI {
             children: vec![],
         };
 
-        gui.add_top_level_panels(vec![_graphics_panel]);
+        gui.add_top_level_panels(vec![_colored_panel]);
     }
 
     fn update(
