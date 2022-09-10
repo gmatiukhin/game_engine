@@ -287,7 +287,7 @@ impl UI {
     fn new() -> Self {
         let mut sprite = RgbaImage::new(10, 10);
         for (x, y, pixel) in sprite.enumerate_pixels_mut() {
-            *pixel = Rgba([(x * 25) as u8, (y * 25) as u8, 0, 255]);
+            *pixel = Rgba([(x * 25) as u8, (y * 25) as u8, 0, 128]);
         }
 
         Self { sprite, position: Point2::new(0.0, 0.0) }
@@ -320,7 +320,19 @@ impl GameObject for UI {
             children: vec![panel_with_text],
         };
 
-        let surface = Surface2D::new(160, 90, Color::BLUE);
+        let mut surface = Surface2D::new(160, 90, Color::BLUE);
+        // Color surface in a checkerboard pattern
+        for y in 0..surface.height() {
+            for x in 0..surface.width() {
+                let color: Color = if (x + y) % 2 == 0 {
+                    Color::RED
+                } else {
+                    Color::BLUE
+                };
+
+                surface.draw_color_point((x as i32, y as i32).into(), color);
+            }
+        }
 
         let _graphics_panel = GUIPanel {
             name: "Graphics panel".to_string(),
@@ -331,7 +343,7 @@ impl GameObject for UI {
             children: vec![],
         };
 
-        gui.add_top_level_panels(vec![_colored_panel]);
+        gui.add_top_level_panels(vec![_graphics_panel]);
     }
 
     fn update(
@@ -343,7 +355,17 @@ impl GameObject for UI {
         let gui = &mut graphics_engine.renderer_2d;
 
         if let Some(GUIPanel { content : GUIPanelContent::Surface2D(surface), ..}) = gui.get_panel("Graphics panel") {
-            surface.clear();
+            for y in 0..surface.height() {
+                for x in 0..surface.width() {
+                    let color: Color = if (x + y) % 2 == 0 {
+                        Color::RED
+                    } else {
+                        Color::BLUE
+                    };
+
+                    surface.draw_color_point((x as i32, y as i32).into(), color);
+                }
+            }
 
             // Move sprite up, down, left, right using arrow keys
             let mut direction = Vector2::new(

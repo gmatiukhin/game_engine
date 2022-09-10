@@ -252,7 +252,7 @@ impl Surface2D {
         }
     }
 
-    /// Draws a point on the surface, it is possible to draw outside the surface
+    /// Draws a point on the surface
     pub fn draw_color_point(&mut self, position: cgmath::Point2<i32>, color: texture::Color) {
         if position.x as u32 >= self.width || position.y as u32 >= self.height {
             return;
@@ -264,15 +264,20 @@ impl Surface2D {
         );
     }
 
+    /// Draws a point on the surface with premultiplied alpha blending
     pub fn draw_rgba_point(&mut self, position: cgmath::Point2<i32>, rgba: image::Rgba<u8>) {
         if position.x as u32 >= self.width || position.y as u32 >= self.height {
             return;
         }
-        self.image.put_pixel(
-            position.x as u32,
-            position.y as u32,
-            rgba,
-        );
+
+        // Premultiplied alpha blending
+        let pixel = self.image.get_pixel_mut(position.x as u32, position.y as u32);
+        let alpha = rgba.0[3] as f32 / 255.0;
+        let inv_alpha = 1.0 - alpha;
+        pixel.0[0] = (pixel.0[0] as f32 * inv_alpha + rgba.0[0] as f32) as u8;
+        pixel.0[1] = (pixel.0[1] as f32 * inv_alpha + rgba.0[1] as f32) as u8;
+        pixel.0[2] = (pixel.0[2] as f32 * inv_alpha + rgba.0[2] as f32) as u8;
+        pixel.0[3] = (pixel.0[3] as f32 * inv_alpha + rgba.0[3] as f32) as u8;
     }
 
     /// Draws line from `start` to `end` using [Bresenham's line algorithm](https://en.wikipedia.org/wiki/Bresenham%27s_line_algorithm) with optimisations
@@ -598,5 +603,13 @@ impl Surface2D {
 
     fn image(&self) -> image::DynamicImage {
         image::DynamicImage::ImageRgba8(self.image.clone())
+    }
+
+    pub fn width(&self) -> u32 {
+        self.image.width()
+    }
+
+    pub fn height(&self) -> u32 {
+        self.image.height()
     }
 }
