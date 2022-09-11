@@ -90,7 +90,7 @@ impl Game {
                         WindowEvent::CloseRequested => {
                             self.call_end();
                             *control_flow = ControlFlow::Exit
-                        },
+                        }
                         WindowEvent::Resized(physical_size) => {
                             graphics_engine.resize(physical_size);
                         }
@@ -115,7 +115,7 @@ impl Game {
                             *control_flow = ControlFlow::Exit;
                         }
                     }
-                    
+
                     input_handler.update_input_state();
                     graphics_engine.update();
 
@@ -135,7 +135,7 @@ impl Game {
             }
         })
     }
-    
+
     pub fn exit() {
         unsafe {
             EXIT_GAME = true;

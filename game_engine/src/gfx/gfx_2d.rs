@@ -1,8 +1,8 @@
+use crate::gfx::gfx_2d::components_2d::Surface2D;
 use crate::gfx::gfx_2d::components_2d::*;
 use crate::gfx::gfx_2d::text::*;
 use crate::util::OPENGL_TO_WGPU_MATRIX;
 use log::info;
-use std::collections::vec_deque::VecDeque;
 use std::rc::Rc;
 use wgpu::util::DeviceExt;
 use winit::dpi::PhysicalSize;
@@ -17,45 +17,19 @@ pub struct Renderer2D {
     screen_size: PhysicalSize<u32>,
     render_pipeline: wgpu::RenderPipeline,
 
-    panels: Vec<GUIPanel>,
-    buffered_panels: Vec<GUIPanelBuffered>,
+    surface: Surface2D,
 
     projection: cgmath::Matrix4<f32>,
     projection_buffer: wgpu::Buffer,
     projection_bind_group: wgpu::BindGroup,
+
     texture_bind_group_layout: wgpu::BindGroupLayout,
+    texture_bind_group: wgpu::BindGroup,
+
+    vertex_buffer: wgpu::Buffer,
+    index_buffer: wgpu::Buffer,
 
     text_rasterizer: TextRasterizer,
-}
-
-impl Renderer2D {
-    pub fn add_top_level_panels(&mut self, mut panels: Vec<GUIPanel>) {
-        self.panels.append(&mut panels);
-    }
-
-    pub fn get_panel(&mut self, name: &str) -> Option<&mut GUIPanel> {
-        let mut panel_queue = VecDeque::new();
-        for panel in &mut self.panels {
-            panel_queue.push_back(panel);
-        }
-
-        loop {
-            if panel_queue.is_empty() {
-                break;
-            }
-            if let Some(panel) = panel_queue.pop_front() {
-                if panel.name == name {
-                    return Some(panel);
-                } else {
-                    for child in panel.children.iter_mut() {
-                        panel_queue.push_back(child);
-                    }
-                }
-            }
-        }
-
-        None
-    }
 }
 
 impl Renderer2D {
@@ -65,11 +39,13 @@ impl Renderer2D {
         surface_config: &wgpu::SurfaceConfiguration,
     ) -> Self {
         info!("Creating RendererGUI");
+        let screen_size: PhysicalSize<u32> = (surface_config.width, surface_config.height).into();
+
         let projection = OPENGL_TO_WGPU_MATRIX
             * cgmath::ortho(
                 0.0,
-                surface_config.width as f32,
-                surface_config.height as f32,
+                screen_size.width as f32,
+                screen_size.height as f32,
                 0.0,
                 -1.0,
                 1000.0,
@@ -166,17 +142,81 @@ impl Renderer2D {
 
         let text_rasterizer = TextRasterizer::new();
 
+        let vertices = vec![
+            // Top left
+            GUIVertex {
+                position: [0.0, 0.0],
+                text_coords: [0.0, 0.0],
+            },
+            // Bottom left
+            GUIVertex {
+                position: [0.0, screen_size.height as f32],
+                text_coords: [0.0, 1.0],
+            },
+            // Bottom right
+            GUIVertex {
+                position: [screen_size.width as f32, screen_size.height as f32],
+                text_coords: [1.0, 1.0],
+            },
+            // Top right
+            GUIVertex {
+                position: [screen_size.width as f32, 0.0],
+                text_coords: [1.0, 0.0],
+            },
+        ];
+
+        let indices: Vec<u32> = vec![0, 1, 2, 0, 2, 3];
+
+        let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("surface_vertex_buffer"),
+            contents: &bytemuck::cast_slice(&vertices),
+            usage: wgpu::BufferUsages::VERTEX,
+        });
+
+        let index_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("surface_index_buffer"),
+            contents: &bytemuck::cast_slice(&indices),
+            usage: wgpu::BufferUsages::INDEX,
+        });
+
+        let surface = Surface2D::from_color(crate::gfx::texture::Color::BLACK);
+
+        let texture = crate::gfx::texture::Texture::from_image(
+            &device,
+            &queue,
+            &surface.image(),
+            "Surface texture",
+            true,
+        );
+
+        let texture_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: Some("Surface texture bind group"),
+            layout: &texture_bind_group_layout,
+            entries: &[
+                wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: wgpu::BindingResource::TextureView(&texture.view),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 1,
+                    resource: wgpu::BindingResource::Sampler(&texture.sampler),
+                },
+            ],
+        });
+
         Self {
             device,
             queue,
-            screen_size: (surface_config.width, surface_config.height).into(),
+            screen_size,
             render_pipeline,
-            panels: vec![],
-            buffered_panels: vec![],
+            surface,
             projection,
             projection_buffer,
             projection_bind_group,
             texture_bind_group_layout,
+            texture_bind_group,
+            vertex_buffer,
+            index_buffer,
             text_rasterizer,
         }
     }
@@ -186,7 +226,7 @@ impl Renderer2D {
         command_encoder: &mut wgpu::CommandEncoder,
         view: &wgpu::TextureView,
     ) {
-        let mut gui_render_pass = command_encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+        let mut render_pass = command_encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: Some("gui_render_pass"),
             color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                 view: &view,
@@ -199,11 +239,13 @@ impl Renderer2D {
             depth_stencil_attachment: None,
         });
 
-        gui_render_pass.set_pipeline(&self.render_pipeline);
-        gui_render_pass.set_bind_group(0, &self.projection_bind_group, &[]);
-        for panel in &self.buffered_panels {
-            panel.render(&mut gui_render_pass);
-        }
+        render_pass.set_pipeline(&self.render_pipeline);
+        render_pass.set_bind_group(0, &self.projection_bind_group, &[]);
+        render_pass.set_bind_group(1, &self.texture_bind_group, &[]);
+        render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
+        render_pass.set_index_buffer(self.index_buffer.slice(..), wgpu::IndexFormat::Uint32);
+
+        render_pass.draw_indexed(0..6, 0, 0..1);
     }
 
     pub(crate) fn resize(&mut self, new_size: PhysicalSize<u32>) {
@@ -227,25 +269,39 @@ impl Renderer2D {
             bytemuck::cast_slice(&[projection_raw]),
         );
 
-        self.buffered_panels = self
-            .panels
-            .iter_mut()
-            .map(|panel| {
-                panel.buffer(
-                    &self.device,
-                    &self.queue,
-                    &self.texture_bind_group_layout,
-                    &self.text_rasterizer,
-                    (0.0, 0.0).into(),
-                    (
-                        self.screen_size.width as f32,
-                        self.screen_size.height as f32,
-                    )
-                        .into(),
-                )
-            })
-            .filter(|el| if let Some(_) = el { true } else { false })
-            .map(|el| el.unwrap())
-            .collect();
+        let texture = crate::gfx::texture::Texture::from_image(
+            &self.device,
+            &self.queue,
+            &self.surface.image(),
+            "Surface image",
+            true,
+        );
+
+        let texture_bind_group = self.device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: Some("panel"),
+            layout: &self.texture_bind_group_layout,
+            entries: &[
+                wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: wgpu::BindingResource::TextureView(&texture.view),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 1,
+                    resource: wgpu::BindingResource::Sampler(&texture.sampler),
+                },
+            ],
+        });
+
+        self.texture_bind_group = texture_bind_group;
+    }
+}
+
+impl Renderer2D {
+    pub fn set_surface(&mut self, surface: Surface2D) {
+        self.surface = surface;
+    }
+
+    pub fn surface(&mut self) -> &mut Surface2D {
+        &mut self.surface
     }
 }

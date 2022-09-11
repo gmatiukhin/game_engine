@@ -1,9 +1,10 @@
+use game_engine::cgmath::Vector2;
 #[allow(unused_imports)]
 use game_engine::{
     cgmath::{Deg, InnerSpace, One, Point2, Point3, Quaternion, Rad, Vector3},
     gfx::{
         gfx_2d::{
-            components_2d::{GUIPanel, GUIPanelContent, GUITransform, Surface2D},
+            components_2d::Surface2D,
             text::{FontParameters, TextParameters},
         },
         gfx_3d::{
@@ -13,12 +14,11 @@ use game_engine::{
         texture::{Color, Image, Material, Shader, Texture},
         GraphicsEngine,
     },
-    image::{Rgba, RgbaImage, load_from_memory},
+    image::{load_from_memory, Rgba, RgbaImage},
     input::{InputHandler, MouseButton, VirtualKeyCode},
     Game, GameObject,
 };
 use std::f32::consts::FRAC_PI_2;
-use game_engine::cgmath::Vector2;
 
 struct PrefabController {
     model: Model,
@@ -278,72 +278,44 @@ impl GameObject for CameraController {
     }
 }
 
-struct UI {
+struct GFX2DController {
     sprite: RgbaImage,
     position: Point2<f32>,
 }
 
-impl UI {
+impl GFX2DController {
     fn new() -> Self {
         let mut sprite = RgbaImage::new(10, 10);
         for (x, y, pixel) in sprite.enumerate_pixels_mut() {
             *pixel = Rgba([(x * 25) as u8, (y * 25) as u8, 0, 128]);
         }
 
-        Self { sprite, position: Point2::new(0.0, 0.0) }
+        Self {
+            sprite,
+            position: Point2::new(0.0, 0.0),
+        }
     }
 }
 
-impl GameObject for UI {
+impl GameObject for GFX2DController {
     fn start(&mut self, graphics_engine: &mut GraphicsEngine) {
         let gui = &mut graphics_engine.renderer_2d;
-        let panel_with_text = GUIPanel {
-            name: "Test text".to_string(),
-            active: true,
-            position: GUITransform::Relative(0.1, 0.1),
-            dimensions: GUITransform::Relative(0.8, 0.8),
-            content: GUIPanelContent::Text(TextParameters {
-                text: "Hello, World!".to_string(),
-                color: Color::GREEN,
-                scale: 40.0,
-                font: FontParameters::Default,
-            }),
-            children: vec![],
-        };
 
-        let _colored_panel = GUIPanel {
-            name: "Test color".to_string(),
-            active: true,
-            position: GUITransform::Relative(0.01, 0.01),
-            dimensions: GUITransform::Relative(0.3, 0.7),
-            content: GUIPanelContent::Surface2D(Surface2D::from_color(Color::BLACK)),
-            children: vec![panel_with_text],
-        };
-
-        let mut surface = Surface2D::new(160, 90, Color::BLUE);
+        let mut surface = Surface2D::new(80, 45, Color::TRANSPARENT);
         // Color surface in a checkerboard pattern
-        for y in 0..surface.height() {
-            for x in 0..surface.width() {
-                let color: Color = if (x + y) % 2 == 0 {
-                    Color::RED
-                } else {
-                    Color::BLUE
-                };
+        // for y in 0..surface.height() {
+        //     for x in 0..surface.width() {
+        //         let color: Color = if (x + y) % 2 == 0 {
+        //             Color::RED
+        //         } else {
+        //             Color::BLUE
+        //         };
+        //
+        //         surface.draw_color_point((x as i32, y as i32).into(), color);
+        //     }
+        // }
 
-                surface.draw_color_point((x as i32, y as i32).into(), color);
-            }
-        }
-
-        let _graphics_panel = GUIPanel {
-            name: "Graphics panel".to_string(),
-            active: true,
-            position: GUITransform::Relative(0.0, 0.0),
-            dimensions: GUITransform::Relative(1.0, 1.0),
-            content: GUIPanelContent::Surface2D(surface),
-            children: vec![],
-        };
-
-        gui.add_top_level_panels(vec![_graphics_panel]);
+        gui.set_surface(surface);
     }
 
     fn update(
@@ -354,41 +326,45 @@ impl GameObject for UI {
     ) {
         let gui = &mut graphics_engine.renderer_2d;
 
-        if let Some(GUIPanel { content : GUIPanelContent::Surface2D(surface), ..}) = gui.get_panel("Graphics panel") {
-            for y in 0..surface.height() {
-                for x in 0..surface.width() {
-                    let color: Color = if (x + y) % 2 == 0 {
-                        Color::RED
-                    } else {
-                        Color::BLUE
-                    };
+        let surface = gui.surface();
+        surface.clear();
 
-                    surface.draw_color_point((x as i32, y as i32).into(), color);
-                }
-            }
+        // for y in 0..surface.height() {
+        //     for x in 0..surface.width() {
+        //         let color: Color = if (x + y) % 2 == 0 {
+        //             Color::RED
+        //         } else {
+        //             Color::BLUE
+        //         };
+        //         surface.draw_color_point((x as i32, y as i32).into(), color);
+        //     }
+        // }
 
-            // Move sprite up, down, left, right using arrow keys
-            let mut direction = Vector2::new(
-                input_handler.is_key_held(&VirtualKeyCode::Right) as i32 as f32
-                    - input_handler.is_key_held(&VirtualKeyCode::Left) as i32 as f32,
-                input_handler.is_key_held(&VirtualKeyCode::Down) as i32 as f32
-                    - input_handler.is_key_held(&VirtualKeyCode::Up) as i32 as f32,
-            ).normalize();
+        // Move sprite up, down, left, right using arrow keys
+        let mut direction = Vector2::new(
+            input_handler.is_key_held(&VirtualKeyCode::Right) as i32 as f32
+                - input_handler.is_key_held(&VirtualKeyCode::Left) as i32 as f32,
+            input_handler.is_key_held(&VirtualKeyCode::Down) as i32 as f32
+                - input_handler.is_key_held(&VirtualKeyCode::Up) as i32 as f32,
+        )
+        .normalize();
 
-            if direction.x.is_nan() || direction.y.is_nan() {
-                direction = Vector2::new(0.0, 0.0);
-            }
-
-            let mut speed: f32 = 50.0;
-            if input_handler.is_key_held(&VirtualKeyCode::LShift) {
-                speed *= 2.0;
-            }
-
-            direction *= speed * dt;
-            self.position += direction;
-
-            surface.draw_sprite(&self.sprite, (self.position.x as i32, self.position.y as i32).into());
+        if direction.x.is_nan() || direction.y.is_nan() {
+            direction = Vector2::new(0.0, 0.0);
         }
+
+        let mut speed: f32 = 50.0;
+        if input_handler.is_key_held(&VirtualKeyCode::LShift) {
+            speed *= 2.0;
+        }
+
+        direction *= speed * dt;
+        self.position += direction;
+
+        surface.draw_sprite(
+            &self.sprite,
+            (self.position.x as i32, self.position.y as i32).into(),
+        );
     }
 }
 
@@ -416,16 +392,16 @@ fn main() {
 
     let mut game = Game::new("Test game", 1280, 720, true);
 
-    // let prefab_controller = PrefabController::new();
-    // game.add_game_object(prefab_controller);
-    //
-    // let model_controller = ModelController {};
-    // game.add_game_object(model_controller);
-    //
-    // let camera_controller = CameraController {};
-    // game.add_game_object(camera_controller);
+    let prefab_controller = PrefabController::new();
+    game.add_game_object(prefab_controller);
 
-    let ui = UI::new();
+    let model_controller = ModelController {};
+    game.add_game_object(model_controller);
+
+    let camera_controller = CameraController {};
+    game.add_game_object(camera_controller);
+
+    let ui = GFX2DController::new();
     game.add_game_object(ui);
 
     let game_controller = GameController {};
