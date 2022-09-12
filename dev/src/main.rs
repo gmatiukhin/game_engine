@@ -299,10 +299,17 @@ impl GFX2DController {
 
 impl GameObject for GFX2DController {
     fn start(&mut self, graphics_engine: &mut GraphicsEngine) {
-        let gui = &mut graphics_engine.renderer_2d;
+        let renderer_2d = &mut graphics_engine.renderer_2d;
 
-        let mut surface = Surface2D::new(80, 45, Color::TRANSPARENT);
-        // Color surface in a checkerboard pattern
+        renderer_2d.set_background_surface(Surface2D::from_color(Color {
+            r: 0.3,
+            g: 0.6,
+            b: 0.8,
+            a: 1.0,
+        }));
+
+        let surface = Surface2D::new(80, 45, Color::TRANSPARENT);
+        // // Color surface in a checkerboard pattern
         // for y in 0..surface.height() {
         //     for x in 0..surface.width() {
         //         let color: Color = if (x + y) % 2 == 0 {
@@ -315,7 +322,7 @@ impl GameObject for GFX2DController {
         //     }
         // }
 
-        gui.set_surface(surface);
+        renderer_2d.set_foreground_surface(surface);
     }
 
     fn update(
@@ -326,7 +333,7 @@ impl GameObject for GFX2DController {
     ) {
         let gui = &mut graphics_engine.renderer_2d;
 
-        let surface = gui.surface();
+        let surface = gui.foreground_surface();
         surface.clear();
 
         // for y in 0..surface.height() {

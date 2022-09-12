@@ -82,8 +82,11 @@ impl GraphicsEngine {
                     label: Some("render_pass_encoder"),
                 });
 
+        self.renderer_2d
+            .render_background(&mut command_encoder, &view);
         self.renderer_3d.render(&mut command_encoder, &view);
-        self.renderer_2d.render(&mut command_encoder, &view);
+        self.renderer_2d
+            .render_foreground(&mut command_encoder, &view);
 
         self.queue.submit(std::iter::once(command_encoder.finish()));
         surface_texture.present();

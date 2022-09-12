@@ -17,17 +17,19 @@ pub struct Renderer2D {
     screen_size: PhysicalSize<u32>,
     render_pipeline: wgpu::RenderPipeline,
 
-    surface: Surface2D,
-
     projection: cgmath::Matrix4<f32>,
     projection_buffer: wgpu::Buffer,
     projection_bind_group: wgpu::BindGroup,
 
-    texture_bind_group_layout: wgpu::BindGroupLayout,
-    texture_bind_group: wgpu::BindGroup,
-
     vertex_buffer: wgpu::Buffer,
     index_buffer: wgpu::Buffer,
+    texture_bind_group_layout: wgpu::BindGroupLayout,
+
+    background_surface: Surface2D,
+    background_texture_bind_group: wgpu::BindGroup,
+
+    foreground_surface: Surface2D,
+    foreground_texture_bind_group: wgpu::BindGroup,
 
     text_rasterizer: TextRasterizer,
 }
@@ -179,27 +181,52 @@ impl Renderer2D {
             usage: wgpu::BufferUsages::INDEX,
         });
 
-        let surface = Surface2D::from_color(crate::gfx::texture::Color::BLACK);
+        let background_surface = Surface2D::from_color(crate::gfx::texture::Color::BLACK);
 
-        let texture = crate::gfx::texture::Texture::from_image(
+        let background_texture = crate::gfx::texture::Texture::from_image(
             &device,
             &queue,
-            &surface.image(),
-            "Surface texture",
+            &background_surface.image(),
+            "Background surface texture",
             true,
         );
 
-        let texture_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-            label: Some("Surface texture bind group"),
+        let background_texture_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: Some("Background surface texture bind group"),
             layout: &texture_bind_group_layout,
             entries: &[
                 wgpu::BindGroupEntry {
                     binding: 0,
-                    resource: wgpu::BindingResource::TextureView(&texture.view),
+                    resource: wgpu::BindingResource::TextureView(&background_texture.view),
                 },
                 wgpu::BindGroupEntry {
                     binding: 1,
-                    resource: wgpu::BindingResource::Sampler(&texture.sampler),
+                    resource: wgpu::BindingResource::Sampler(&background_texture.sampler),
+                },
+            ],
+        });
+
+        let foreground_surface = Surface2D::from_color(crate::gfx::texture::Color::WHITE);
+
+        let foreground_texture = crate::gfx::texture::Texture::from_image(
+            &device,
+            &queue,
+            &foreground_surface.image(),
+            "Foreground surface texture",
+            true,
+        );
+
+        let foreground_texture_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: Some("Foreground surface texture bind group"),
+            layout: &texture_bind_group_layout,
+            entries: &[
+                wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: wgpu::BindingResource::TextureView(&foreground_texture.view),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 1,
+                    resource: wgpu::BindingResource::Sampler(&foreground_texture.sampler),
                 },
             ],
         });
@@ -209,25 +236,54 @@ impl Renderer2D {
             queue,
             screen_size,
             render_pipeline,
-            surface,
             projection,
             projection_buffer,
             projection_bind_group,
-            texture_bind_group_layout,
-            texture_bind_group,
             vertex_buffer,
             index_buffer,
+            texture_bind_group_layout,
+            background_surface,
+            background_texture_bind_group,
+            foreground_surface,
+            foreground_texture_bind_group,
             text_rasterizer,
         }
     }
 
-    pub(crate) fn render(
+    pub(crate) fn render_background(
         &self,
         command_encoder: &mut wgpu::CommandEncoder,
         view: &wgpu::TextureView,
     ) {
         let mut render_pass = command_encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-            label: Some("gui_render_pass"),
+            label: Some("background_render_pass"),
+            color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                view: &view,
+                resolve_target: None,
+                ops: wgpu::Operations {
+                    load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
+                    store: true,
+                },
+            })],
+            depth_stencil_attachment: None,
+        });
+
+        render_pass.set_pipeline(&self.render_pipeline);
+        render_pass.set_bind_group(0, &self.projection_bind_group, &[]);
+        render_pass.set_bind_group(1, &self.background_texture_bind_group, &[]);
+        render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
+        render_pass.set_index_buffer(self.index_buffer.slice(..), wgpu::IndexFormat::Uint32);
+
+        render_pass.draw_indexed(0..6, 0, 0..1);
+    }
+
+    pub(crate) fn render_foreground(
+        &self,
+        command_encoder: &mut wgpu::CommandEncoder,
+        view: &wgpu::TextureView,
+    ) {
+        let mut render_pass = command_encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+            label: Some("foreground_render_pass"),
             color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                 view: &view,
                 resolve_target: None,
@@ -241,7 +297,7 @@ impl Renderer2D {
 
         render_pass.set_pipeline(&self.render_pipeline);
         render_pass.set_bind_group(0, &self.projection_bind_group, &[]);
-        render_pass.set_bind_group(1, &self.texture_bind_group, &[]);
+        render_pass.set_bind_group(1, &self.foreground_texture_bind_group, &[]);
         render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
         render_pass.set_index_buffer(self.index_buffer.slice(..), wgpu::IndexFormat::Uint32);
 
@@ -269,39 +325,73 @@ impl Renderer2D {
             bytemuck::cast_slice(&[projection_raw]),
         );
 
-        let texture = crate::gfx::texture::Texture::from_image(
+        let background_texture = crate::gfx::texture::Texture::from_image(
             &self.device,
             &self.queue,
-            &self.surface.image(),
-            "Surface image",
+            &self.background_surface.image(),
+            "Background surface texture",
             true,
         );
 
-        let texture_bind_group = self.device.create_bind_group(&wgpu::BindGroupDescriptor {
-            label: Some("panel"),
-            layout: &self.texture_bind_group_layout,
-            entries: &[
-                wgpu::BindGroupEntry {
-                    binding: 0,
-                    resource: wgpu::BindingResource::TextureView(&texture.view),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 1,
-                    resource: wgpu::BindingResource::Sampler(&texture.sampler),
-                },
-            ],
-        });
+        let background_texture_bind_group =
+            self.device.create_bind_group(&wgpu::BindGroupDescriptor {
+                label: Some("Background surface texture bind group"),
+                layout: &self.texture_bind_group_layout,
+                entries: &[
+                    wgpu::BindGroupEntry {
+                        binding: 0,
+                        resource: wgpu::BindingResource::TextureView(&background_texture.view),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 1,
+                        resource: wgpu::BindingResource::Sampler(&background_texture.sampler),
+                    },
+                ],
+            });
 
-        self.texture_bind_group = texture_bind_group;
+        let foreground_texture = crate::gfx::texture::Texture::from_image(
+            &self.device,
+            &self.queue,
+            &self.foreground_surface.image(),
+            "Foreground surface texture",
+            true,
+        );
+
+        let foreground_texture_bind_group =
+            self.device.create_bind_group(&wgpu::BindGroupDescriptor {
+                label: Some("Foreground surface texture bind group"),
+                layout: &self.texture_bind_group_layout,
+                entries: &[
+                    wgpu::BindGroupEntry {
+                        binding: 0,
+                        resource: wgpu::BindingResource::TextureView(&foreground_texture.view),
+                    },
+                    wgpu::BindGroupEntry {
+                        binding: 1,
+                        resource: wgpu::BindingResource::Sampler(&foreground_texture.sampler),
+                    },
+                ],
+            });
+
+        self.background_texture_bind_group = background_texture_bind_group;
+        self.foreground_texture_bind_group = foreground_texture_bind_group;
     }
 }
 
 impl Renderer2D {
-    pub fn set_surface(&mut self, surface: Surface2D) {
-        self.surface = surface;
+    pub fn set_background_surface(&mut self, surface: Surface2D) {
+        self.background_surface = surface;
     }
 
-    pub fn surface(&mut self) -> &mut Surface2D {
-        &mut self.surface
+    pub fn background_surface(&mut self) -> &mut Surface2D {
+        &mut self.background_surface
+    }
+
+    pub fn set_foreground_surface(&mut self, surface: Surface2D) {
+        self.foreground_surface = surface;
+    }
+
+    pub fn foreground_surface(&mut self) -> &mut Surface2D {
+        &mut self.foreground_surface
     }
 }
