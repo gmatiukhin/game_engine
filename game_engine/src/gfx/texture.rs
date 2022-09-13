@@ -1,4 +1,98 @@
-pub use wgpu::Color;
+#[repr(C)]
+#[derive(Debug, Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
+pub struct PixelColor {
+    pub r: u8,
+    pub g: u8,
+    pub b: u8,
+    pub a: u8,
+}
+
+impl PixelColor {
+    pub fn new(r: u8, g: u8, b: u8, a: u8) -> Self {
+        Self { r, g, b, a }
+    }
+
+    // Constant color values
+    pub const BLACK: Self = Self {
+        r: 0,
+        g: 0,
+        b: 0,
+        a: 255,
+    };
+
+    pub const WHITE: Self = Self {
+        r: 255,
+        g: 255,
+        b: 255,
+        a: 255,
+    };
+
+    pub const RED: Self = Self {
+        r: 255,
+        g: 0,
+        b: 0,
+        a: 255,
+    };
+
+    pub const GREEN: Self = Self {
+        r: 0,
+        g: 255,
+        b: 0,
+        a: 255,
+    };
+
+    pub const BLUE: Self = Self {
+        r: 0,
+        g: 0,
+        b: 255,
+        a: 255,
+    };
+
+    pub const YELLOW: Self = Self {
+        r: 255,
+        g: 255,
+        b: 0,
+        a: 255,
+    };
+
+    pub const MAGENTA: Self = Self {
+        r: 255,
+        g: 0,
+        b: 255,
+        a: 255,
+    };
+
+    pub const CYAN: Self = Self {
+        r: 0,
+        g: 255,
+        b: 255,
+        a: 255,
+    };
+
+    pub const TRANSPARENT: Self = Self {
+        r: 0,
+        g: 0,
+        b: 0,
+        a: 0,
+    };
+}
+
+impl Into<wgpu::Color> for PixelColor {
+    fn into(self) -> wgpu::Color {
+        wgpu::Color {
+            r: self.r as f64 / 255.0,
+            g: self.g as f64 / 255.0,
+            b: self.b as f64 / 255.0,
+            a: self.a as f64 / 255.0,
+        }
+    }
+}
+
+impl Into<image::Rgba<u8>> for PixelColor {
+    fn into(self) -> image::Rgba<u8> {
+        image::Rgba([self.r, self.g, self.b, self.a])
+    }
+}
 
 pub(in crate::gfx) const DEPTH_TEXTURE_FORMAT: wgpu::TextureFormat =
     wgpu::TextureFormat::Depth32Float;
@@ -78,10 +172,14 @@ impl Texture {
     }
 
     pub(in crate::gfx) fn default_texture(device: &wgpu::Device, queue: &wgpu::Queue) -> Self {
-        Self::from_color(device, queue, &Color::WHITE)
+        Self::from_color(device, queue, &PixelColor::WHITE)
     }
 
-    pub(crate) fn from_color(device: &wgpu::Device, queue: &wgpu::Queue, color: &Color) -> Self {
+    pub(crate) fn from_color(
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        color: &PixelColor,
+    ) -> Self {
         let texture_size = wgpu::Extent3d {
             width: 1,
             height: 1,
@@ -98,12 +196,7 @@ impl Texture {
             usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
         });
 
-        let data = [
-            (color.r * 255.0) as u8,
-            (color.g * 255.0) as u8,
-            (color.b * 255.0) as u8,
-            (color.a * 255.0) as u8,
-        ];
+        let data = [color.r, color.g, color.b, color.a];
 
         queue.write_texture(
             wgpu::ImageCopyTexture {
@@ -280,7 +373,7 @@ impl Texture {
 
 pub enum Material {
     Textured(Image),
-    FlatColor(Color),
+    FlatColor(PixelColor),
 }
 
 impl Material {

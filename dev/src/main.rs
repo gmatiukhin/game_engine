@@ -1,7 +1,6 @@
-use game_engine::cgmath::Vector2;
 #[allow(unused_imports)]
 use game_engine::{
-    cgmath::{Deg, InnerSpace, One, Point2, Point3, Quaternion, Rad, Vector3},
+    cgmath::{Deg, InnerSpace, One, Point2, Point3, Quaternion, Rad, Vector2, Vector3},
     gfx::{
         gfx_2d::{
             components_2d::Surface2D,
@@ -11,7 +10,7 @@ use game_engine::{
             components_3d::{Mesh, Model, PrefabInstance, Vertex},
             Renderer3D,
         },
-        texture::{Color, Image, Material, Shader, Texture},
+        texture::{Image, Material, PixelColor, Shader, Texture},
         GraphicsEngine,
     },
     image::{load_from_memory, Rgba, RgbaImage},
@@ -301,18 +300,14 @@ impl GameObject for GFX2DController {
     fn start(&mut self, graphics_engine: &mut GraphicsEngine) {
         let renderer_2d = &mut graphics_engine.renderer_2d;
 
-        renderer_2d.set_background_surface(Surface2D::from_color(Color {
-            r: 0.3,
-            g: 0.6,
-            b: 0.8,
-            a: 1.0,
-        }));
+        renderer_2d
+            .set_background_surface(Surface2D::from_color(PixelColor::new(26, 178, 255, 255)));
 
-        let surface = Surface2D::new(80, 45, Color::TRANSPARENT);
+        let surface = Surface2D::new(80, 45, PixelColor::TRANSPARENT);
         // // Color surface in a checkerboard pattern
         // for y in 0..surface.height() {
         //     for x in 0..surface.width() {
-        //         let color: Color = if (x + y) % 2 == 0 {
+        //         let color: PixelColor = if (x + y) % 2 == 0 {
         //             Color::RED
         //         } else {
         //             Color::BLUE
@@ -338,7 +333,7 @@ impl GameObject for GFX2DController {
 
         // for y in 0..surface.height() {
         //     for x in 0..surface.width() {
-        //         let color: Color = if (x + y) % 2 == 0 {
+        //         let color: PixelColor = if (x + y) % 2 == 0 {
         //             Color::RED
         //         } else {
         //             Color::BLUE

@@ -181,7 +181,7 @@ impl Renderer2D {
             usage: wgpu::BufferUsages::INDEX,
         });
 
-        let background_surface = Surface2D::from_color(crate::gfx::texture::Color::BLACK);
+        let background_surface = Surface2D::from_color(crate::gfx::texture::PixelColor::BLACK);
 
         let background_texture = crate::gfx::texture::Texture::from_image(
             &device,
@@ -206,7 +206,7 @@ impl Renderer2D {
             ],
         });
 
-        let foreground_surface = Surface2D::from_color(crate::gfx::texture::Color::WHITE);
+        let foreground_surface = Surface2D::from_color(crate::gfx::texture::PixelColor::WHITE);
 
         let foreground_texture = crate::gfx::texture::Texture::from_image(
             &device,
@@ -261,7 +261,8 @@ impl Renderer2D {
                 view: &view,
                 resolve_target: None,
                 ops: wgpu::Operations {
-                    load: wgpu::LoadOp::Clear(wgpu::Color::BLACK),
+                    // Can use load her because we always have a default background texture
+                    load: wgpu::LoadOp::Load,
                     store: true,
                 },
             })],

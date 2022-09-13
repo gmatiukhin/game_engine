@@ -29,8 +29,8 @@ pub struct Surface2D {
 }
 
 impl Surface2D {
-    pub fn new(width: u32, height: u32, default_color: texture::Color) -> Self {
-        let default_color = crate::util::from_color_to_rgba(&default_color);
+    pub fn new(width: u32, height: u32, default_color: texture::PixelColor) -> Self {
+        let default_color = default_color.into();
         let mut image: image::RgbaImage = image::ImageBuffer::new(width, height);
         for pixel in image.pixels_mut() {
             *pixel = default_color;
@@ -55,8 +55,8 @@ impl Surface2D {
         }
     }
 
-    pub fn from_color(color: texture::Color) -> Self {
-        let default_color = crate::util::from_color_to_rgba(&color);
+    pub fn from_color(color: texture::PixelColor) -> Self {
+        let default_color = color.into();
         let mut image: image::RgbaImage = image::ImageBuffer::new(1, 1);
         for pixel in image.pixels_mut() {
             *pixel = default_color;
@@ -71,15 +71,12 @@ impl Surface2D {
     }
 
     /// Draws a point on the surface
-    pub fn draw_color_point(&mut self, position: cgmath::Point2<i32>, color: texture::Color) {
+    pub fn draw_color_point(&mut self, position: cgmath::Point2<i32>, color: texture::PixelColor) {
         if position.x as u32 >= self.width || position.y as u32 >= self.height {
             return;
         }
-        self.image.put_pixel(
-            position.x as u32,
-            position.y as u32,
-            crate::util::from_color_to_rgba(&color),
-        );
+        self.image
+            .put_pixel(position.x as u32, position.y as u32, color.into());
     }
 
     /// Draws a point on the surface with premultiplied alpha blending
@@ -105,7 +102,7 @@ impl Surface2D {
         &mut self,
         start: cgmath::Point2<i32>,
         end: cgmath::Point2<i32>,
-        color: texture::Color,
+        color: texture::PixelColor,
     ) {
         let dx = i32::abs(end.x - start.x);
         let dy = i32::abs(end.y - start.y);
@@ -158,7 +155,7 @@ impl Surface2D {
         &mut self,
         start: cgmath::Point2<i32>,
         end: cgmath::Point2<i32>,
-        color: texture::Color,
+        color: texture::PixelColor,
     ) {
         let mut dx = end.x - start.x;
         let dy = end.y - start.y;
@@ -187,7 +184,7 @@ impl Surface2D {
         &mut self,
         start: cgmath::Point2<i32>,
         end: cgmath::Point2<i32>,
-        color: texture::Color,
+        color: texture::PixelColor,
     ) {
         let dx = end.x - start.x;
         let mut dy = end.y - start.y;
@@ -216,7 +213,7 @@ impl Surface2D {
         &mut self,
         start: cgmath::Point2<i32>,
         end: cgmath::Point2<i32>,
-        color: texture::Color,
+        color: texture::PixelColor,
         fill: bool,
     ) {
         if fill {
@@ -250,7 +247,7 @@ impl Surface2D {
         &mut self,
         center: cgmath::Point2<i32>,
         radius: u32,
-        color: texture::Color,
+        color: texture::PixelColor,
         fill: bool,
     ) {
         let mut x = 0;
@@ -280,7 +277,7 @@ impl Surface2D {
     }
 
     #[rustfmt::skip]
-    fn draw_circle_octants(&mut self, center: cgmath::Point2<i32>, x: i32, y: i32, color: texture::Color) {
+    fn draw_circle_octants(&mut self, center: cgmath::Point2<i32>, x: i32, y: i32, color: texture::PixelColor) {
         self.draw_color_point((center.x + x, center.y + y).into(), color);
         self.draw_color_point((center.x - x, center.y + y).into(), color);
         self.draw_color_point((center.x + x, center.y - y).into(), color);
@@ -292,7 +289,7 @@ impl Surface2D {
     }
 
     #[rustfmt::skip]
-    fn draw_circle_octants_filled(&mut self, center: cgmath::Point2<i32>, x: i32, y: i32, color: texture::Color) {
+    fn draw_circle_octants_filled(&mut self, center: cgmath::Point2<i32>, x: i32, y: i32, color: texture::PixelColor) {
         self.draw_line((center.x - x, center.y + y).into(), (center.x + x, center.y + y).into(), color);
         self.draw_line((center.x - x, center.y - y).into(), (center.x + x, center.y - y).into(), color);
         self.draw_line((center.x - y, center.y + x).into(), (center.x + y, center.y + x).into(), color);
@@ -305,7 +302,7 @@ impl Surface2D {
         p0: cgmath::Point2<i32>,
         p1: cgmath::Point2<i32>,
         p2: cgmath::Point2<i32>,
-        color: texture::Color,
+        color: texture::PixelColor,
         fill: bool,
     ) {
         if fill {
@@ -322,7 +319,7 @@ impl Surface2D {
         p0: cgmath::Point2<i32>,
         p1: cgmath::Point2<i32>,
         p2: cgmath::Point2<i32>,
-        color: texture::Color,
+        color: texture::PixelColor,
     ) {
         // Sort vertices by y-coordinate ascending
         let (p0, p1, p2) = if p0.y > p1.y {
@@ -365,7 +362,7 @@ impl Surface2D {
         p0: cgmath::Point2<i32>,
         p1: cgmath::Point2<i32>,
         p2: cgmath::Point2<i32>,
-        color: texture::Color,
+        color: texture::PixelColor,
     ) {
         let inv_slope1 = (p1.x - p0.x) as f32 / (p1.y - p0.y) as f32;
         let inv_slope2 = (p2.x - p0.x) as f32 / (p2.y - p0.y) as f32;
@@ -389,7 +386,7 @@ impl Surface2D {
         p0: cgmath::Point2<i32>,
         p1: cgmath::Point2<i32>,
         p2: cgmath::Point2<i32>,
-        color: texture::Color,
+        color: texture::PixelColor,
     ) {
         let inv_slope1 = (p2.x - p0.x) as f32 / (p2.y - p0.y) as f32;
         let inv_slope2 = (p2.x - p1.x) as f32 / (p2.y - p1.y) as f32;
