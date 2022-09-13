@@ -119,7 +119,7 @@ impl Renderer2D {
                     entry_point: "fs_main",
                     targets: &[Some(wgpu::ColorTargetState {
                         format: surface_config.format,
-                        blend: Some(wgpu::BlendState::ALPHA_BLENDING),
+                        blend: Some(wgpu::BlendState::PREMULTIPLIED_ALPHA_BLENDING),
                         write_mask: wgpu::ColorWrites::all(),
                     })],
                 }),
@@ -172,7 +172,7 @@ impl Renderer2D {
         let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("surface_vertex_buffer"),
             contents: &bytemuck::cast_slice(&vertices),
-            usage: wgpu::BufferUsages::VERTEX,
+            usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
         });
 
         let index_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
@@ -315,6 +315,35 @@ impl Renderer2D {
                 -1.0,
                 1000.0,
             );
+
+        let vertices = vec![
+            // Top left
+            GUIVertex {
+                position: [0.0, 0.0],
+                text_coords: [0.0, 0.0],
+            },
+            // Bottom left
+            GUIVertex {
+                position: [0.0, self.screen_size.height as f32],
+                text_coords: [0.0, 1.0],
+            },
+            // Bottom right
+            GUIVertex {
+                position: [
+                    self.screen_size.width as f32,
+                    self.screen_size.height as f32,
+                ],
+                text_coords: [1.0, 1.0],
+            },
+            // Top right
+            GUIVertex {
+                position: [self.screen_size.width as f32, 0.0],
+                text_coords: [1.0, 0.0],
+            },
+        ];
+
+        self.queue
+            .write_buffer(&self.vertex_buffer, 0, bytemuck::cast_slice(&vertices));
     }
 
     pub(crate) fn update(&mut self) {
