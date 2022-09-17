@@ -7,6 +7,7 @@ pub struct PixelColor {
     pub a: u8,
 }
 
+/// Constants
 impl PixelColor {
     pub fn new(r: u8, g: u8, b: u8, a: u8) -> Self {
         Self { r, g, b, a }
@@ -77,6 +78,27 @@ impl PixelColor {
     };
 }
 
+impl PixelColor {
+    pub fn premultiply(&self) -> Self {
+        let r = (self.r as f32 * self.a as f32 / 255.0) as u8;
+        let g = (self.g as f32 * self.a as f32 / 255.0) as u8;
+        let b = (self.b as f32 * self.a as f32 / 255.0) as u8;
+        Self { r, g, b, a: self.a }
+    }
+
+    /// Blends dst over src
+    pub fn blend(dst: &Self, src: &Self) -> Self {
+        let inv_a = 255 - src.a;
+
+        let r = src.r + ((dst.r as u16 * inv_a as u16) / 255) as u8;
+        let g = src.g + ((dst.g as u16 * inv_a as u16) / 255) as u8;
+        let b = src.b + ((dst.b as u16 * inv_a as u16) / 255) as u8;
+        let a = src.a + ((dst.a as u16 * inv_a as u16) / 255) as u8;
+
+        Self { r, g, b, a }
+    }
+}
+
 impl Into<wgpu::Color> for PixelColor {
     fn into(self) -> wgpu::Color {
         wgpu::Color {
@@ -88,9 +110,31 @@ impl Into<wgpu::Color> for PixelColor {
     }
 }
 
+impl From<wgpu::Color> for PixelColor {
+    fn from(color: wgpu::Color) -> Self {
+        Self {
+            r: (color.r * 255.0) as u8,
+            g: (color.g * 255.0) as u8,
+            b: (color.b * 255.0) as u8,
+            a: (color.a * 255.0) as u8,
+        }
+    }
+}
+
 impl Into<image::Rgba<u8>> for PixelColor {
     fn into(self) -> image::Rgba<u8> {
         image::Rgba([self.r, self.g, self.b, self.a])
+    }
+}
+
+impl From<image::Rgba<u8>> for PixelColor {
+    fn from(rgba8: image::Rgba<u8>) -> Self {
+        Self {
+            r: rgba8[0],
+            g: rgba8[1],
+            b: rgba8[2],
+            a: rgba8[3],
+        }
     }
 }
 
@@ -121,7 +165,7 @@ pub(crate) const TEXTURE_BIND_GROUP_LAYOUT_DESCRIPTOR: wgpu::BindGroupLayoutDesc
     };
 
 pub struct Texture {
-    pub(crate) _texture: wgpu::Texture,
+    pub(crate) texture: wgpu::Texture,
     pub(crate) view: wgpu::TextureView,
     pub(crate) sampler: wgpu::Sampler,
 }
@@ -165,7 +209,7 @@ impl Texture {
         });
 
         Self {
-            _texture: texture,
+            texture,
             view,
             sampler,
         }
@@ -180,61 +224,17 @@ impl Texture {
         queue: &wgpu::Queue,
         color: &PixelColor,
     ) -> Self {
-        let texture_size = wgpu::Extent3d {
-            width: 1,
-            height: 1,
-            depth_or_array_layers: 1,
-        };
-
-        let texture = device.create_texture(&wgpu::TextureDescriptor {
-            label: Some(&format!("Texture for color: {:?}", color)),
-            size: texture_size,
-            mip_level_count: 1,
-            sample_count: 1,
-            dimension: wgpu::TextureDimension::D2,
-            format: wgpu::TextureFormat::Rgba8UnormSrgb,
-            usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
-        });
-
         let data = [color.r, color.g, color.b, color.a];
 
-        queue.write_texture(
-            wgpu::ImageCopyTexture {
-                texture: &texture,
-                mip_level: 0,
-                origin: Default::default(),
-                aspect: Default::default(),
-            },
+        Self::from_bytes_rgba(
+            &device,
+            &queue,
             &data,
-            wgpu::ImageDataLayout {
-                offset: 0,
-                bytes_per_row: std::num::NonZeroU32::new(4),
-                rows_per_image: std::num::NonZeroU32::new(1),
-            },
-            texture_size,
-        );
-
-        let view = texture.create_view(&wgpu::TextureViewDescriptor {
-            label: Some(&format!("Texture view for color texture: {:?}", color)),
-            ..wgpu::TextureViewDescriptor::default()
-        });
-
-        let sampler = device.create_sampler(&wgpu::SamplerDescriptor {
-            label: Some(&format!("Sampler for color texture: {:?}", color)),
-            address_mode_u: wgpu::AddressMode::ClampToEdge,
-            address_mode_v: wgpu::AddressMode::ClampToEdge,
-            address_mode_w: wgpu::AddressMode::ClampToEdge,
-            mag_filter: wgpu::FilterMode::Linear,
-            min_filter: wgpu::FilterMode::Linear,
-            mipmap_filter: wgpu::FilterMode::Nearest,
-            ..wgpu::SamplerDescriptor::default()
-        });
-
-        Self {
-            _texture: texture,
-            view,
-            sampler,
-        }
+            1,
+            1,
+            false,
+            Some(&format!("{:?}", color)),
+        )
     }
 
     pub(crate) fn from_image(
@@ -247,73 +247,25 @@ impl Texture {
         let image = image.to_rgba8();
         let dimensions = image.dimensions();
 
-        let texture_size = wgpu::Extent3d {
-            width: dimensions.0,
-            height: dimensions.1,
-            depth_or_array_layers: 1,
-        };
-
-        let texture = device.create_texture(&wgpu::TextureDescriptor {
-            label: Some(&format!("Image texture for {}", label)),
-            size: texture_size,
-            mip_level_count: 1,
-            sample_count: 1,
-            dimension: wgpu::TextureDimension::D2,
-            format: wgpu::TextureFormat::Rgba8UnormSrgb,
-            usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
-        });
-
-        queue.write_texture(
-            wgpu::ImageCopyTexture {
-                texture: &texture,
-                mip_level: 0,
-                origin: Default::default(),
-                aspect: Default::default(),
-            },
+        Self::from_bytes_rgba(
+            &device,
+            &queue,
             &image,
-            wgpu::ImageDataLayout {
-                offset: 0,
-                bytes_per_row: std::num::NonZeroU32::new(4 * dimensions.0),
-                rows_per_image: std::num::NonZeroU32::new(dimensions.1),
-            },
-            texture_size,
-        );
-
-        let view = texture.create_view(&wgpu::TextureViewDescriptor {
-            label: Some(&format!("Texture view for {}", label)),
-            ..wgpu::TextureViewDescriptor::default()
-        });
-
-        let mag_min_filter = if pixelated {
-            wgpu::FilterMode::Nearest
-        } else {
-            wgpu::FilterMode::Linear
-        };
-
-        let sampler = device.create_sampler(&wgpu::SamplerDescriptor {
-            label: Some(&format!("Sampler for {}", label)),
-            address_mode_u: wgpu::AddressMode::ClampToEdge,
-            address_mode_v: wgpu::AddressMode::ClampToEdge,
-            address_mode_w: wgpu::AddressMode::ClampToEdge,
-            mag_filter: mag_min_filter,
-            min_filter: mag_min_filter,
-            mipmap_filter: wgpu::FilterMode::Nearest,
-            ..wgpu::SamplerDescriptor::default()
-        });
-
-        Self {
-            _texture: texture,
-            view,
-            sampler,
-        }
+            dimensions.0,
+            dimensions.1,
+            pixelated,
+            Some(label),
+        )
     }
 
     pub(crate) fn from_bytes_rgba(
         device: &wgpu::Device,
         queue: &wgpu::Queue,
-        bytes: Vec<u8>,
+        bytes: &[u8],
         width: u32,
         height: u32,
+        pixelated: bool,
+        label: Option<&str>,
     ) -> Self {
         let texture_size = wgpu::Extent3d {
             width,
@@ -322,7 +274,7 @@ impl Texture {
         };
 
         let texture = device.create_texture(&wgpu::TextureDescriptor {
-            label: Some("Texture for text"),
+            label,
             size: texture_size,
             mip_level_count: 1,
             sample_count: 1,
@@ -347,24 +299,26 @@ impl Texture {
             texture_size,
         );
 
-        let view = texture.create_view(&wgpu::TextureViewDescriptor {
-            label: Some("Texture for text"),
-            ..wgpu::TextureViewDescriptor::default()
-        });
+        let view = texture.create_view(&wgpu::TextureViewDescriptor::default());
+
+        let mag_min_filter = if pixelated {
+            wgpu::FilterMode::Nearest
+        } else {
+            wgpu::FilterMode::Linear
+        };
 
         let sampler = device.create_sampler(&wgpu::SamplerDescriptor {
-            label: Some("Texture for text"),
             address_mode_u: wgpu::AddressMode::ClampToEdge,
             address_mode_v: wgpu::AddressMode::ClampToEdge,
             address_mode_w: wgpu::AddressMode::ClampToEdge,
-            mag_filter: wgpu::FilterMode::Linear,
-            min_filter: wgpu::FilterMode::Linear,
+            mag_filter: mag_min_filter,
+            min_filter: mag_min_filter,
             mipmap_filter: wgpu::FilterMode::Nearest,
             ..wgpu::SamplerDescriptor::default()
         });
 
         Self {
-            _texture: texture,
+            texture,
             view,
             sampler,
         }

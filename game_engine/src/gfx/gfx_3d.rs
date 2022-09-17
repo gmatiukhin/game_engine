@@ -147,7 +147,7 @@ impl Renderer3D {
             })
     }
 
-    pub(crate) fn render(
+    pub(crate) fn render_scene(
         &self,
         command_encoder: &mut wgpu::CommandEncoder,
         view: &wgpu::TextureView,

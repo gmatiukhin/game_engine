@@ -26,9 +26,11 @@ pub struct Renderer2D {
     texture_bind_group_layout: wgpu::BindGroupLayout,
 
     background_surface: Surface2D,
+    _background_texture: crate::gfx::texture::Texture,
     background_texture_bind_group: wgpu::BindGroup,
 
     foreground_surface: Surface2D,
+    _foreground_texture: crate::gfx::texture::Texture,
     foreground_texture_bind_group: wgpu::BindGroup,
 
     text_rasterizer: TextRasterizer,
@@ -181,7 +183,11 @@ impl Renderer2D {
             usage: wgpu::BufferUsages::INDEX,
         });
 
-        let background_surface = Surface2D::from_color(crate::gfx::texture::PixelColor::BLACK);
+        let background_surface = Surface2D::new(
+            screen_size.width,
+            screen_size.height,
+            crate::gfx::texture::PixelColor::BLACK,
+        );
 
         let background_texture = crate::gfx::texture::Texture::from_image(
             &device,
@@ -191,13 +197,16 @@ impl Renderer2D {
             true,
         );
 
+        let background_texture_view_resource =
+            wgpu::BindingResource::TextureView(&background_texture.view);
+
         let background_texture_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: Some("Background surface texture bind group"),
             layout: &texture_bind_group_layout,
             entries: &[
                 wgpu::BindGroupEntry {
                     binding: 0,
-                    resource: wgpu::BindingResource::TextureView(&background_texture.view),
+                    resource: background_texture_view_resource,
                 },
                 wgpu::BindGroupEntry {
                     binding: 1,
@@ -206,7 +215,11 @@ impl Renderer2D {
             ],
         });
 
-        let foreground_surface = Surface2D::from_color(crate::gfx::texture::PixelColor::WHITE);
+        let foreground_surface = Surface2D::new(
+            screen_size.width,
+            screen_size.height,
+            crate::gfx::texture::PixelColor::TRANSPARENT,
+        );
 
         let foreground_texture = crate::gfx::texture::Texture::from_image(
             &device,
@@ -243,8 +256,10 @@ impl Renderer2D {
             index_buffer,
             texture_bind_group_layout,
             background_surface,
+            _background_texture: background_texture,
             background_texture_bind_group,
             foreground_surface,
+            _foreground_texture: foreground_texture,
             foreground_texture_bind_group,
             text_rasterizer,
         }
@@ -345,6 +360,9 @@ impl Renderer2D {
 
         self.queue
             .write_buffer(&self.vertex_buffer, 0, bytemuck::cast_slice(&vertices));
+
+        self.background_surface.resize(new_size);
+        self.foreground_surface.resize(new_size);
     }
 
     pub(crate) fn update(&mut self) {
@@ -407,6 +425,54 @@ impl Renderer2D {
         self.foreground_texture_bind_group = foreground_texture_bind_group;
     }
 }
+
+// fn update_background_surface(&mut self) {
+//     self.queue.write_texture(
+//         wgpu::ImageCopyTexture {
+//             texture: &self._background_texture.texture,
+//             mip_level: 0,
+//             origin: Default::default(),
+//             aspect: Default::default(),
+//         },
+//         &self.background_surface.raw_values(),
+//         wgpu::ImageDataLayout {
+//             offset: 0,
+//             bytes_per_row: std::num::NonZeroU32::new(4 * self.screen_size.width),
+//             rows_per_image: std::num::NonZeroU32::new(self.screen_size.height),
+//         },
+//         wgpu::Extent3d {
+//             width: self.screen_size.width,
+//             height: self.screen_size.height,
+//             depth_or_array_layers: 1
+//         }
+//     );
+//
+//     self._background_texture.view = self.background_texture.texture.create_view(&wgpu::TextureViewDescriptor::default());
+// }
+//
+// fn update_foreground_surface(&mut self) {
+//     self.queue.write_texture(
+//         wgpu::ImageCopyTexture {
+//             texture: &self._foreground_texture.texture,
+//             mip_level: 0,
+//             origin: Default::default(),
+//             aspect: Default::default(),
+//         },
+//         &self.foreground_surface.raw_values(),
+//         wgpu::ImageDataLayout {
+//             offset: 0,
+//             bytes_per_row: std::num::NonZeroU32::new(4 * self.screen_size.width),
+//             rows_per_image: std::num::NonZeroU32::new(self.screen_size.height),
+//         },
+//         wgpu::Extent3d {
+//             width: self.screen_size.width,
+//             height: self.screen_size.height,
+//             depth_or_array_layers: 1
+//         }
+//     );
+//
+//     self._foreground_texture.view = self.foreground_texture.texture.create_view(&wgpu::TextureViewDescriptor::default());
+// }
 
 impl Renderer2D {
     pub fn set_background_surface(&mut self, surface: Surface2D) {

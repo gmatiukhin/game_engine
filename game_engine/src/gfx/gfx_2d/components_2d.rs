@@ -21,80 +21,57 @@ impl GUIVertex {
     }
 }
 
+pub enum DrawMode {
+    Blend,
+    Replace,
+}
+
 pub struct Surface2D {
     width: u32,
     height: u32,
-    default_color: image::Rgba<u8>,
-    image: image::RgbaImage,
+    clear_color: texture::PixelColor,
+    values: Vec<texture::PixelColor>,
+    pub draw_mode: DrawMode,
 }
 
 impl Surface2D {
-    pub fn new(width: u32, height: u32, default_color: texture::PixelColor) -> Self {
-        let default_color = default_color.into();
-        let mut image: image::RgbaImage = image::ImageBuffer::new(width, height);
-        for pixel in image.pixels_mut() {
-            *pixel = default_color;
-        }
-
+    pub fn new(width: u32, height: u32, clear_color: texture::PixelColor) -> Self {
         Self {
             width,
             height,
-            default_color,
-            image,
+            clear_color,
+            values: vec![clear_color.into(); (width * height) as usize],
+            draw_mode: DrawMode::Blend,
         }
     }
 
     pub fn from_image(image: image::RgbaImage) -> Self {
         let (width, height) = image.dimensions();
+        let mut values = vec![texture::PixelColor::TRANSPARENT; (width * height) as usize];
+        for (x, y, pixel) in image.enumerate_pixels() {
+            values[(y * width + x) as usize] = texture::PixelColor::from(*pixel);
+        }
 
         Self {
             width,
             height,
-            default_color: image::Rgba([0, 0, 0, 0]),
-            image,
-        }
-    }
-
-    pub fn from_color(color: texture::PixelColor) -> Self {
-        let default_color = color.into();
-        let mut image: image::RgbaImage = image::ImageBuffer::new(1, 1);
-        for pixel in image.pixels_mut() {
-            *pixel = default_color;
-        }
-
-        Self {
-            width: 1,
-            height: 1,
-            default_color,
-            image,
+            clear_color: texture::PixelColor::TRANSPARENT,
+            values,
+            draw_mode: DrawMode::Blend,
         }
     }
 
     /// Draws a point on the surface
-    pub fn draw_color_point(&mut self, position: cgmath::Point2<i32>, color: texture::PixelColor) {
-        if position.x as u32 >= self.width || position.y as u32 >= self.height {
-            return;
+    pub fn draw_pixel(&mut self, position: cgmath::Point2<i32>, color: texture::PixelColor) {
+        if let Some(dst) = self
+            .values
+            .get_mut((position.y * self.width as i32 + position.x) as usize)
+        {
+            match &self.draw_mode {
+                DrawMode::Replace => *dst = color.premultiply(),
+                DrawMode::Blend => *dst = texture::PixelColor::blend(dst, &color.premultiply()),
+            }
         }
-        self.image
-            .put_pixel(position.x as u32, position.y as u32, color.into());
-    }
-
-    /// Draws a point on the surface with premultiplied alpha blending
-    pub fn draw_rgba_point(&mut self, position: cgmath::Point2<i32>, rgba: image::Rgba<u8>) {
-        if position.x as u32 >= self.width || position.y as u32 >= self.height {
-            return;
-        }
-
-        // Premultiplied alpha blending
-        let pixel = self
-            .image
-            .get_pixel_mut(position.x as u32, position.y as u32);
-        let alpha = rgba.0[3] as f32 / 255.0;
-        let inv_alpha = 1.0 - alpha;
-        pixel.0[0] = (pixel.0[0] as f32 * inv_alpha + rgba.0[0] as f32) as u8;
-        pixel.0[1] = (pixel.0[1] as f32 * inv_alpha + rgba.0[1] as f32) as u8;
-        pixel.0[2] = (pixel.0[2] as f32 * inv_alpha + rgba.0[2] as f32) as u8;
-        pixel.0[3] = (pixel.0[3] as f32 * inv_alpha + rgba.0[3] as f32) as u8;
     }
 
     /// Draws line from `start` to `end` using [Bresenham's line algorithm](https://en.wikipedia.org/wiki/Bresenham%27s_line_algorithm) with optimisations
@@ -116,7 +93,7 @@ impl Surface2D {
             };
 
             for y in y0..=y1 {
-                self.draw_color_point((start.x, y).into(), color);
+                self.draw_pixel((start.x, y).into(), color);
             }
             return;
         }
@@ -130,7 +107,7 @@ impl Surface2D {
             };
 
             for x in x0..=x1 {
-                self.draw_color_point((x, start.y).into(), color);
+                self.draw_pixel((x, start.y).into(), color);
             }
             return;
         }
@@ -169,7 +146,7 @@ impl Surface2D {
         let mut x = start.x;
 
         for y in start.y..=end.y {
-            self.draw_color_point((x, y).into(), color);
+            self.draw_pixel((x, y).into(), color);
 
             if d > 0 {
                 x += xi;
@@ -199,7 +176,7 @@ impl Surface2D {
         let mut y = start.y;
 
         for x in start.x..=end.x {
-            self.draw_color_point((x, y).into(), color);
+            self.draw_pixel((x, y).into(), color);
             if d > 0 {
                 y += yi;
                 d += 2 * (dy - dx);
@@ -231,7 +208,7 @@ impl Surface2D {
 
             for y in y0..=y1 {
                 for x in x0..=x1 {
-                    self.draw_color_point((x, y).into(), color);
+                    self.draw_pixel((x, y).into(), color);
                 }
             }
         } else {
@@ -278,14 +255,14 @@ impl Surface2D {
 
     #[rustfmt::skip]
     fn draw_circle_octants(&mut self, center: cgmath::Point2<i32>, x: i32, y: i32, color: texture::PixelColor) {
-        self.draw_color_point((center.x + x, center.y + y).into(), color);
-        self.draw_color_point((center.x - x, center.y + y).into(), color);
-        self.draw_color_point((center.x + x, center.y - y).into(), color);
-        self.draw_color_point((center.x - x, center.y - y).into(), color);
-        self.draw_color_point((center.x + y, center.y + x).into(), color);
-        self.draw_color_point((center.x - y, center.y + x).into(), color);
-        self.draw_color_point((center.x + y, center.y - x).into(), color);
-        self.draw_color_point((center.x - y, center.y - x).into(), color);
+        self.draw_pixel((center.x + x, center.y + y).into(), color);
+        self.draw_pixel((center.x - x, center.y + y).into(), color);
+        self.draw_pixel((center.x + x, center.y - y).into(), color);
+        self.draw_pixel((center.x - x, center.y - y).into(), color);
+        self.draw_pixel((center.x + y, center.y + x).into(), color);
+        self.draw_pixel((center.x - y, center.y + x).into(), color);
+        self.draw_pixel((center.x + y, center.y - x).into(), color);
+        self.draw_pixel((center.x - y, center.y - x).into(), color);
     }
 
     #[rustfmt::skip]
@@ -406,8 +383,8 @@ impl Surface2D {
     }
 
     pub fn clear(&mut self) {
-        for el in self.image.pixels_mut() {
-            *el = self.default_color;
+        for el in self.values.iter_mut() {
+            *el = self.clear_color;
         }
     }
 
@@ -416,19 +393,44 @@ impl Surface2D {
         for (x, y, pixel) in sprite.enumerate_pixels() {
             let x = x as i32 + position.x;
             let y = y as i32 + position.y;
-            self.draw_rgba_point((x, y).into(), *pixel);
+            self.draw_pixel((x, y).into(), texture::PixelColor::from(*pixel));
         }
     }
 
+    pub(super) fn raw_values(&self) -> Vec<u8> {
+        let mut res = vec![];
+        for p in &self.values {
+            res.push(p.r);
+            res.push(p.g);
+            res.push(p.b);
+            res.push(p.a);
+        }
+
+        res
+    }
+
     pub fn image(&self) -> image::DynamicImage {
-        image::DynamicImage::ImageRgba8(self.image.clone())
+        let img_buffer =
+            image::ImageBuffer::from_fn(self.width as u32, self.height as u32, |x, y| {
+                let p = self.values[(y * self.width + x) as usize];
+                image::Rgba([p.r, p.g, p.b, p.a])
+            });
+
+        image::DynamicImage::ImageRgba8(img_buffer)
     }
 
     pub fn width(&self) -> u32 {
-        self.image.width()
+        self.width
     }
 
     pub fn height(&self) -> u32 {
-        self.image.height()
+        self.height
+    }
+
+    pub(super) fn resize(&mut self, new_size: winit::dpi::PhysicalSize<u32>) {
+        self.width = new_size.width;
+        self.height = new_size.height;
+        self.values
+            .resize((self.width * self.height) as usize, self.clear_color);
     }
 }

@@ -3,7 +3,7 @@ use game_engine::{
     cgmath::{Deg, InnerSpace, One, Point2, Point3, Quaternion, Rad, Vector2, Vector3},
     gfx::{
         gfx_2d::{
-            components_2d::Surface2D,
+            components_2d::{DrawMode, Surface2D},
             text::{FontParameters, TextParameters},
         },
         gfx_3d::{
@@ -300,8 +300,11 @@ impl GameObject for GFX2DController {
     fn start(&mut self, graphics_engine: &mut GraphicsEngine) {
         let renderer_2d = &mut graphics_engine.renderer_2d;
 
-        renderer_2d
-            .set_background_surface(Surface2D::from_color(PixelColor::new(26, 178, 255, 255)));
+        renderer_2d.set_background_surface(Surface2D::new(
+            80,
+            45,
+            PixelColor::new(26, 178, 255, 255),
+        ));
 
         let surface = Surface2D::new(80, 45, PixelColor::TRANSPARENT);
         // // Color surface in a checkerboard pattern
@@ -334,11 +337,11 @@ impl GameObject for GFX2DController {
         // for y in 0..surface.height() {
         //     for x in 0..surface.width() {
         //         let color: PixelColor = if (x + y) % 2 == 0 {
-        //             Color::RED
+        //             PixelColor::RED
         //         } else {
-        //             Color::BLUE
+        //             PixelColor::BLUE
         //         };
-        //         surface.draw_color_point((x as i32, y as i32).into(), color);
+        //         surface.draw_pixel((x as i32, y as i32).into(), color);
         //     }
         // }
 

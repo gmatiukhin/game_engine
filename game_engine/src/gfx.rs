@@ -84,7 +84,7 @@ impl GraphicsEngine {
 
         self.renderer_2d
             .render_background(&mut command_encoder, &view);
-        self.renderer_3d.render(&mut command_encoder, &view);
+        self.renderer_3d.render_scene(&mut command_encoder, &view);
         self.renderer_2d
             .render_foreground(&mut command_encoder, &view);
 
