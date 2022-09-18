@@ -1,4 +1,5 @@
-use crate::gfx::texture;
+use crate::gfx::gfx_2d::text::{TextParameters, TextRasterizer};
+use crate::gfx::texture::PixelColor;
 
 #[repr(C)]
 #[derive(bytemuck::Pod, bytemuck::Zeroable, Copy, Clone, Debug)]
@@ -29,42 +30,45 @@ pub enum DrawMode {
 pub struct Surface2D {
     width: u32,
     height: u32,
-    clear_color: texture::PixelColor,
-    values: Vec<texture::PixelColor>,
+    clear_color: PixelColor,
+    values: Vec<PixelColor>,
     pub draw_mode: DrawMode,
+    text_rasterizer: TextRasterizer,
 }
 
 impl Surface2D {
-    pub fn new(width: u32, height: u32, clear_color: texture::PixelColor) -> Self {
+    pub fn new(width: u32, height: u32, clear_color: PixelColor) -> Self {
         Self {
             width,
             height,
             clear_color,
             values: vec![clear_color.into(); (width * height) as usize],
             draw_mode: DrawMode::Blend,
+            text_rasterizer: TextRasterizer::new(),
         }
     }
 
     pub fn from_image(image: image::RgbaImage) -> Self {
         let (width, height) = image.dimensions();
-        let mut values = vec![texture::PixelColor::TRANSPARENT; (width * height) as usize];
+        let mut values = vec![PixelColor::TRANSPARENT; (width * height) as usize];
         for (x, y, pixel) in image.enumerate_pixels() {
-            values[(y * width + x) as usize] = texture::PixelColor::from(*pixel);
+            values[(y * width + x) as usize] = PixelColor::from(*pixel);
         }
 
         Self {
             width,
             height,
-            clear_color: texture::PixelColor::TRANSPARENT,
+            clear_color: PixelColor::TRANSPARENT,
             values,
             draw_mode: DrawMode::Blend,
+            text_rasterizer: TextRasterizer::new(),
         }
     }
 
     pub(crate) fn from_data_bgra(width: u32, height: u32, mut data: Vec<u8>) -> Self {
         let mut values = vec![];
         for chunk in data.chunks_mut(4) {
-            values.push(texture::PixelColor::new(
+            values.push(PixelColor::new(
                 chunk[2], chunk[1], chunk[0], chunk[3],
             ));
         }
@@ -72,21 +76,22 @@ impl Surface2D {
         Self {
             width,
             height,
-            clear_color: texture::PixelColor::TRANSPARENT,
+            clear_color: PixelColor::TRANSPARENT,
             values,
             draw_mode: DrawMode::Blend,
+            text_rasterizer: TextRasterizer::new(),
         }
     }
 
     /// Draws a point on the surface
-    pub fn draw_pixel(&mut self, position: cgmath::Point2<i32>, color: texture::PixelColor) {
+    pub fn draw_pixel(&mut self, position: cgmath::Point2<i32>, color: PixelColor) {
         if let Some(dst) = self
             .values
             .get_mut((position.y * self.width as i32 + position.x) as usize)
         {
             match &self.draw_mode {
                 DrawMode::Replace => *dst = color.premultiply(),
-                DrawMode::Blend => *dst = texture::PixelColor::blend(dst, &color.premultiply()),
+                DrawMode::Blend => *dst = PixelColor::blend(dst, &color.premultiply()),
             }
         }
     }
@@ -96,7 +101,7 @@ impl Surface2D {
         &mut self,
         start: cgmath::Point2<i32>,
         end: cgmath::Point2<i32>,
-        color: texture::PixelColor,
+        color: PixelColor,
     ) {
         let dx = i32::abs(end.x - start.x);
         let dy = i32::abs(end.y - start.y);
@@ -149,7 +154,7 @@ impl Surface2D {
         &mut self,
         start: cgmath::Point2<i32>,
         end: cgmath::Point2<i32>,
-        color: texture::PixelColor,
+        color: PixelColor,
     ) {
         let mut dx = end.x - start.x;
         let dy = end.y - start.y;
@@ -178,7 +183,7 @@ impl Surface2D {
         &mut self,
         start: cgmath::Point2<i32>,
         end: cgmath::Point2<i32>,
-        color: texture::PixelColor,
+        color: PixelColor,
     ) {
         let dx = end.x - start.x;
         let mut dy = end.y - start.y;
@@ -207,7 +212,7 @@ impl Surface2D {
         &mut self,
         start: cgmath::Point2<i32>,
         end: cgmath::Point2<i32>,
-        color: texture::PixelColor,
+        color: PixelColor,
         fill: bool,
     ) {
         if fill {
@@ -241,7 +246,7 @@ impl Surface2D {
         &mut self,
         center: cgmath::Point2<i32>,
         radius: u32,
-        color: texture::PixelColor,
+        color: PixelColor,
         fill: bool,
     ) {
         let mut x = 0;
@@ -271,7 +276,7 @@ impl Surface2D {
     }
 
     #[rustfmt::skip]
-    fn draw_circle_octants(&mut self, center: cgmath::Point2<i32>, x: i32, y: i32, color: texture::PixelColor) {
+    fn draw_circle_octants(&mut self, center: cgmath::Point2<i32>, x: i32, y: i32, color: PixelColor) {
         self.draw_pixel((center.x + x, center.y + y).into(), color);
         self.draw_pixel((center.x - x, center.y + y).into(), color);
         self.draw_pixel((center.x + x, center.y - y).into(), color);
@@ -283,7 +288,7 @@ impl Surface2D {
     }
 
     #[rustfmt::skip]
-    fn draw_circle_octants_filled(&mut self, center: cgmath::Point2<i32>, x: i32, y: i32, color: texture::PixelColor) {
+    fn draw_circle_octants_filled(&mut self, center: cgmath::Point2<i32>, x: i32, y: i32, color: PixelColor) {
         self.draw_line((center.x - x, center.y + y).into(), (center.x + x, center.y + y).into(), color);
         self.draw_line((center.x - x, center.y - y).into(), (center.x + x, center.y - y).into(), color);
         self.draw_line((center.x - y, center.y + x).into(), (center.x + y, center.y + x).into(), color);
@@ -296,7 +301,7 @@ impl Surface2D {
         p0: cgmath::Point2<i32>,
         p1: cgmath::Point2<i32>,
         p2: cgmath::Point2<i32>,
-        color: texture::PixelColor,
+        color: PixelColor,
         fill: bool,
     ) {
         if fill {
@@ -313,7 +318,7 @@ impl Surface2D {
         p0: cgmath::Point2<i32>,
         p1: cgmath::Point2<i32>,
         p2: cgmath::Point2<i32>,
-        color: texture::PixelColor,
+        color: PixelColor,
     ) {
         // Sort vertices by y-coordinate ascending
         let (p0, p1, p2) = if p0.y > p1.y {
@@ -356,7 +361,7 @@ impl Surface2D {
         p0: cgmath::Point2<i32>,
         p1: cgmath::Point2<i32>,
         p2: cgmath::Point2<i32>,
-        color: texture::PixelColor,
+        color: PixelColor,
     ) {
         let inv_slope1 = (p1.x - p0.x) as f32 / (p1.y - p0.y) as f32;
         let inv_slope2 = (p2.x - p0.x) as f32 / (p2.y - p0.y) as f32;
@@ -380,7 +385,7 @@ impl Surface2D {
         p0: cgmath::Point2<i32>,
         p1: cgmath::Point2<i32>,
         p2: cgmath::Point2<i32>,
-        color: texture::PixelColor,
+        color: PixelColor,
     ) {
         let inv_slope1 = (p2.x - p0.x) as f32 / (p2.y - p0.y) as f32;
         let inv_slope2 = (p2.x - p1.x) as f32 / (p2.y - p1.y) as f32;
@@ -410,7 +415,7 @@ impl Surface2D {
         for (x, y, pixel) in sprite.enumerate_pixels() {
             let x = x as i32 + position.x;
             let y = y as i32 + position.y;
-            self.draw_pixel((x, y).into(), texture::PixelColor::from(*pixel));
+            self.draw_pixel((x, y).into(), PixelColor::from(*pixel));
         }
     }
 
@@ -446,6 +451,32 @@ impl Surface2D {
             });
 
         image::DynamicImage::ImageRgba8(img_buffer)
+    }
+
+    pub fn draw_text(
+        &mut self,
+        text: &TextParameters,
+        position: cgmath::Point2<i32>,
+        width: u32,
+        height: u32,
+    ) {
+        let raw_data = self
+            .text_rasterizer
+            .get_rgba_from_text(&text, width, height);
+        for i in (0..raw_data.len()).step_by(4) {
+            let pixel_index = i / 4;
+            let x = position.x + (pixel_index as i32 % width as i32);
+            let y = position.y + (pixel_index as i32 - x) / width as i32;
+
+            let color = PixelColor::new(
+                raw_data[i],
+                raw_data[i + 1],
+                raw_data[i + 2],
+                raw_data[i + 3],
+            );
+
+            self.draw_pixel((x, y).into(), color);
+        }
     }
 
     pub fn width(&self) -> u32 {
