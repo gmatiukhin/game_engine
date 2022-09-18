@@ -334,17 +334,16 @@ impl GameObject for GFX2DController {
         let surface = gui.foreground_surface();
         surface.clear();
 
-        surface.draw_text(
-            &TextParameters {
-                text: "Hello world".to_string(),
-                color: PixelColor::BLACK,
-                scale: 20.0,
-                font: FontParameters::Default,
-            },
-            (0, 0).into(),
-            200,
-            200,
-        );
+        // for y in 0..surface.height() {
+        //     for x in 0..surface.width() {
+        //         let color: PixelColor = if (x + y) % 2 == 0 {
+        //             PixelColor::RED
+        //         } else {
+        //             PixelColor::BLUE
+        //         };
+        //         surface.draw_pixel((x as i32, y as i32).into(), color);
+        //     }
+        // }
 
         // Move sprite up, down, left, right using arrow keys
         let mut direction = Vector2::new(

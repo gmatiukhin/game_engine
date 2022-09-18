@@ -1,6 +1,4 @@
-use crate::gfx::gfx_2d::text::{TextParameters, TextRasterizer};
 use crate::gfx::texture;
-use crate::gfx::texture::PixelColor;
 
 #[repr(C)]
 #[derive(bytemuck::Pod, bytemuck::Zeroable, Copy, Clone, Debug)]
@@ -34,7 +32,6 @@ pub struct Surface2D {
     clear_color: texture::PixelColor,
     values: Vec<texture::PixelColor>,
     pub draw_mode: DrawMode,
-    text_rasterizer: TextRasterizer,
 }
 
 impl Surface2D {
@@ -45,7 +42,6 @@ impl Surface2D {
             clear_color,
             values: vec![clear_color.into(); (width * height) as usize],
             draw_mode: DrawMode::Blend,
-            text_rasterizer: TextRasterizer::new(),
         }
     }
 
@@ -62,7 +58,6 @@ impl Surface2D {
             clear_color: texture::PixelColor::TRANSPARENT,
             values,
             draw_mode: DrawMode::Blend,
-            text_rasterizer: TextRasterizer::new(),
         }
     }
 
@@ -451,32 +446,6 @@ impl Surface2D {
             });
 
         image::DynamicImage::ImageRgba8(img_buffer)
-    }
-
-    pub fn draw_text(
-        &mut self,
-        text: &TextParameters,
-        position: cgmath::Point2<i32>,
-        width: u32,
-        height: u32,
-    ) {
-        let raw_data = self
-            .text_rasterizer
-            .get_rgba_from_text(&text, width, height);
-        for i in (0..raw_data.len()).step_by(4) {
-            let pixel_index = i / 4;
-            let x = position.x + (pixel_index as i32 % width as i32);
-            let y = position.y + (pixel_index as i32 - x) / width as i32;
-
-            let color = PixelColor::new(
-                raw_data[i],
-                raw_data[i + 1],
-                raw_data[i + 2],
-                raw_data[i + 3],
-            );
-
-            self.draw_pixel((x, y).into(), color);
-        }
     }
 
     pub fn width(&self) -> u32 {
