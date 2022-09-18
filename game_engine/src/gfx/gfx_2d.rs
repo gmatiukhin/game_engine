@@ -32,8 +32,6 @@ pub struct Renderer2D {
     foreground_surface: Surface2D,
     _foreground_texture: crate::gfx::texture::Texture,
     foreground_texture_bind_group: wgpu::BindGroup,
-
-    text_rasterizer: TextRasterizer,
 }
 
 impl Renderer2D {
@@ -143,8 +141,6 @@ impl Renderer2D {
                 multiview: None,
             })
         };
-
-        let text_rasterizer = TextRasterizer::new();
 
         let vertices = vec![
             // Top left
@@ -261,7 +257,6 @@ impl Renderer2D {
             foreground_surface,
             _foreground_texture: foreground_texture,
             foreground_texture_bind_group,
-            text_rasterizer,
         }
     }
 
