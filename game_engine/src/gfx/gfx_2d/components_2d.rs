@@ -61,6 +61,23 @@ impl Surface2D {
         }
     }
 
+    pub(crate) fn from_data_bgra(width: u32, height: u32, mut data: Vec<u8>) -> Self {
+        let mut values = vec![];
+        for chunk in data.chunks_mut(4) {
+            values.push(texture::PixelColor::new(
+                chunk[2], chunk[1], chunk[0], chunk[3],
+            ));
+        }
+
+        Self {
+            width,
+            height,
+            clear_color: texture::PixelColor::TRANSPARENT,
+            values,
+            draw_mode: DrawMode::Blend,
+        }
+    }
+
     /// Draws a point on the surface
     pub fn draw_pixel(&mut self, position: cgmath::Point2<i32>, color: texture::PixelColor) {
         if let Some(dst) = self
@@ -403,6 +420,18 @@ impl Surface2D {
             res.push(p.r);
             res.push(p.g);
             res.push(p.b);
+            res.push(p.a);
+        }
+
+        res
+    }
+
+    pub(crate) fn raw_bgra_values(&self) -> Vec<u8> {
+        let mut res = vec![];
+        for p in &self.values {
+            res.push(p.b);
+            res.push(p.g);
+            res.push(p.r);
             res.push(p.a);
         }
 
