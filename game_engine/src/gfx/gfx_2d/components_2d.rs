@@ -421,6 +421,7 @@ impl Surface2D {
 
     pub(super) fn raw_values(&self) -> Vec<u8> {
         let mut res = vec![];
+        res.reserve(self.values.len() * 4);
         for p in &self.values {
             res.push(p.r);
             res.push(p.g);
@@ -433,6 +434,7 @@ impl Surface2D {
 
     pub(crate) fn raw_bgra_values(&self) -> Vec<u8> {
         let mut res = vec![];
+        res.reserve(self.values.len() * 4);
         for p in &self.values {
             res.push(p.b);
             res.push(p.g);
