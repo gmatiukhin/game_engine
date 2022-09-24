@@ -1,6 +1,7 @@
 use crate::gfx::gfx_3d::camera::{Camera, CameraState};
 use crate::gfx::gfx_3d::components_3d::*;
 use crate::gfx::texture;
+use crate::{ResizeMode, WindowSettings};
 use log::info;
 use std::collections::HashMap;
 use std::rc::Rc;
@@ -12,7 +13,9 @@ pub mod components_3d;
 pub struct Renderer3D {
     device: Rc<wgpu::Device>,
     queue: Rc<wgpu::Queue>,
+    screen_size: PhysicalSize<u32>,
     surface_format: wgpu::TextureFormat,
+    window_settings: WindowSettings,
 
     depth_texture: texture::Texture,
 
@@ -30,20 +33,23 @@ impl Renderer3D {
         device: Rc<wgpu::Device>,
         queue: Rc<wgpu::Queue>,
         surface_config: &wgpu::SurfaceConfiguration,
+        window_settings: WindowSettings,
     ) -> Self {
         info!("Creating Renderer3D");
-
+        let screen_size: PhysicalSize<u32> = (surface_config.width, surface_config.height).into();
         let camera_state = CameraState::default_state(&device, &surface_config);
 
         let depth_texture = texture::Texture::depth_texture(&device, &surface_config);
 
         let texture_bind_group_layout =
-            device.create_bind_group_layout(&super::texture::TEXTURE_BIND_GROUP_LAYOUT_DESCRIPTOR);
+            device.create_bind_group_layout(&texture::TEXTURE_BIND_GROUP_LAYOUT_DESCRIPTOR);
 
         Self {
             device,
             queue,
+            screen_size,
             surface_format: surface_config.format,
+            window_settings,
             depth_texture,
             camera_state,
             texture_bind_group_layout,
@@ -171,6 +177,27 @@ impl Renderer3D {
                 stencil_ops: None,
             }),
         });
+
+        if self.window_settings.resize_mode == ResizeMode::KeepAspectRatio {
+            let aspect = self.window_settings.window_width as f32
+                / self.window_settings.window_height as f32;
+            // set up scissors rect with constant aspect ratio that stays in the center
+            let (width, height): (f32, f32) = self.screen_size.to_logical::<f32>(1.0).into();
+            let (scissors_width, scissors_height) = if width > height * aspect {
+                (height * aspect, height)
+            } else {
+                (width, width / aspect)
+            };
+            let scissors_x = (width - scissors_width) / 2.0;
+            let scissors_y = (height - scissors_height) / 2.0;
+            render_pass.set_scissor_rect(
+                scissors_x as u32,
+                scissors_y as u32,
+                scissors_width as u32,
+                scissors_height as u32,
+            );
+        }
+
         render_pass.set_bind_group(0, &self.camera_state.camera_bind_group, &[]);
 
         for (_, (pipeline, model)) in &self.buffered_models {
@@ -189,6 +216,7 @@ impl Renderer3D {
         new_size: PhysicalSize<u32>,
         surface_config: &wgpu::SurfaceConfiguration,
     ) {
+        self.screen_size = new_size;
         self.depth_texture = texture::Texture::depth_texture(&self.device, &surface_config);
         self.camera_state
             .camera

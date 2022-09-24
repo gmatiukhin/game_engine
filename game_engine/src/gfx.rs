@@ -1,5 +1,6 @@
 use crate::gfx::gfx_2d::Renderer2D;
 use crate::gfx::gfx_3d::Renderer3D;
+use crate::WindowSettings;
 use log::info;
 use std::rc::Rc;
 use winit::dpi::PhysicalSize;
@@ -14,6 +15,7 @@ pub struct GraphicsEngine {
     queue: Rc<wgpu::Queue>,
     surface: wgpu::Surface,
     surface_config: wgpu::SurfaceConfiguration,
+    window_settings: WindowSettings,
 
     screen_size: PhysicalSize<u32>,
 
@@ -22,7 +24,7 @@ pub struct GraphicsEngine {
 }
 
 impl GraphicsEngine {
-    pub(super) fn new(window: &Window) -> Self {
+    pub(super) fn new(window: &Window, window_settings: WindowSettings) -> Self {
         info!("Creating GraphicsEngine");
         let instance = wgpu::Instance::new(wgpu::Backends::all());
         let surface = unsafe { instance.create_surface(&window) };
@@ -57,8 +59,18 @@ impl GraphicsEngine {
         let device = Rc::new(device);
         let queue = Rc::new(queue);
 
-        let renderer_3d = Renderer3D::new(Rc::clone(&device), Rc::clone(&queue), &surface_config);
-        let renderer_gui = Renderer2D::new(Rc::clone(&device), Rc::clone(&queue), &surface_config);
+        let renderer_3d = Renderer3D::new(
+            Rc::clone(&device),
+            Rc::clone(&queue),
+            &surface_config,
+            window_settings,
+        );
+        let renderer_2d = Renderer2D::new(
+            Rc::clone(&device),
+            Rc::clone(&queue),
+            &surface_config,
+            window_settings,
+        );
 
         Self {
             screen_size,
@@ -66,8 +78,9 @@ impl GraphicsEngine {
             queue,
             surface,
             surface_config,
+            window_settings,
             renderer_3d,
-            renderer_2d: renderer_gui,
+            renderer_2d,
         }
     }
 

@@ -1,7 +1,7 @@
 use crate::gfx::gfx_2d::components_2d::Surface2D;
 use crate::gfx::gfx_2d::components_2d::*;
-use crate::gfx::gfx_2d::text::*;
 use crate::util::OPENGL_TO_WGPU_MATRIX;
+use crate::{ResizeMode, WindowSettings};
 use log::info;
 use std::rc::Rc;
 use wgpu::util::DeviceExt;
@@ -15,6 +15,7 @@ pub struct Renderer2D {
     queue: Rc<wgpu::Queue>,
 
     screen_size: PhysicalSize<u32>,
+    window_settings: WindowSettings,
     render_pipeline: wgpu::RenderPipeline,
 
     projection: cgmath::Matrix4<f32>,
@@ -39,6 +40,7 @@ impl Renderer2D {
         device: Rc<wgpu::Device>,
         queue: Rc<wgpu::Queue>,
         surface_config: &wgpu::SurfaceConfiguration,
+        window_settings: WindowSettings,
     ) -> Self {
         info!("Creating RendererGUI");
         let screen_size: PhysicalSize<u32> = (surface_config.width, surface_config.height).into();
@@ -244,6 +246,7 @@ impl Renderer2D {
             device,
             queue,
             screen_size,
+            window_settings,
             render_pipeline,
             projection,
             projection_buffer,
@@ -265,33 +268,22 @@ impl Renderer2D {
         command_encoder: &mut wgpu::CommandEncoder,
         view: &wgpu::TextureView,
     ) {
-        let mut render_pass = command_encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-            label: Some("background_render_pass"),
-            color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                view: &view,
-                resolve_target: None,
-                ops: wgpu::Operations {
-                    // Can use load her because we always have a default background texture
-                    load: wgpu::LoadOp::Load,
-                    store: true,
-                },
-            })],
-            depth_stencil_attachment: None,
-        });
-
-        render_pass.set_pipeline(&self.render_pipeline);
-        render_pass.set_bind_group(0, &self.projection_bind_group, &[]);
-        render_pass.set_bind_group(1, &self.background_texture_bind_group, &[]);
-        render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
-        render_pass.set_index_buffer(self.index_buffer.slice(..), wgpu::IndexFormat::Uint32);
-
-        render_pass.draw_indexed(0..6, 0, 0..1);
+        self.render_panel(command_encoder, view, &self.background_texture_bind_group);
     }
 
     pub(crate) fn render_foreground(
         &self,
         command_encoder: &mut wgpu::CommandEncoder,
         view: &wgpu::TextureView,
+    ) {
+        self.render_panel(command_encoder, view, &self.foreground_texture_bind_group);
+    }
+
+    fn render_panel(
+        &self,
+        command_encoder: &mut wgpu::CommandEncoder,
+        view: &wgpu::TextureView,
+        panel_bind_group: &wgpu::BindGroup,
     ) {
         let mut render_pass = command_encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: Some("foreground_render_pass"),
@@ -306,9 +298,31 @@ impl Renderer2D {
             depth_stencil_attachment: None,
         });
 
+        if self.window_settings.resize_mode == ResizeMode::KeepAspectRatio {
+            let aspect = self.window_settings.window_width as f32
+                / self.window_settings.window_height as f32;
+            // set up scissors rect with constant aspect ratio that stays in the center
+            let (width, height): (f32, f32) = self.screen_size.to_logical::<f32>(1.0).into();
+            let (scissors_width, scissors_height) = if width > height * aspect {
+                (height * aspect, height)
+            } else {
+                (width, width / aspect)
+            };
+            let scissors_x = (width - scissors_width) / 2.0;
+            let scissors_y = (height - scissors_height) / 2.0;
+            render_pass.set_viewport(
+                scissors_x,
+                scissors_y,
+                scissors_width,
+                scissors_height,
+                0.0,
+                1.0,
+            );
+        }
+
         render_pass.set_pipeline(&self.render_pipeline);
         render_pass.set_bind_group(0, &self.projection_bind_group, &[]);
-        render_pass.set_bind_group(1, &self.foreground_texture_bind_group, &[]);
+        render_pass.set_bind_group(1, &panel_bind_group, &[]);
         render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
         render_pass.set_index_buffer(self.index_buffer.slice(..), wgpu::IndexFormat::Uint32);
 
@@ -356,8 +370,10 @@ impl Renderer2D {
         self.queue
             .write_buffer(&self.vertex_buffer, 0, bytemuck::cast_slice(&vertices));
 
-        self.background_surface.resize(new_size);
-        self.foreground_surface.resize(new_size);
+        if self.window_settings.resize_mode != ResizeMode::KeepAspectRatio {
+            self.background_surface.resize(new_size);
+            self.foreground_surface.resize(new_size);
+        }
     }
 
     pub(crate) fn update(&mut self) {
@@ -420,54 +436,6 @@ impl Renderer2D {
         self.foreground_texture_bind_group = foreground_texture_bind_group;
     }
 }
-
-// fn update_background_surface(&mut self) {
-//     self.queue.write_texture(
-//         wgpu::ImageCopyTexture {
-//             texture: &self._background_texture.texture,
-//             mip_level: 0,
-//             origin: Default::default(),
-//             aspect: Default::default(),
-//         },
-//         &self.background_surface.raw_values(),
-//         wgpu::ImageDataLayout {
-//             offset: 0,
-//             bytes_per_row: std::num::NonZeroU32::new(4 * self.screen_size.width),
-//             rows_per_image: std::num::NonZeroU32::new(self.screen_size.height),
-//         },
-//         wgpu::Extent3d {
-//             width: self.screen_size.width,
-//             height: self.screen_size.height,
-//             depth_or_array_layers: 1
-//         }
-//     );
-//
-//     self._background_texture.view = self.background_texture.texture.create_view(&wgpu::TextureViewDescriptor::default());
-// }
-//
-// fn update_foreground_surface(&mut self) {
-//     self.queue.write_texture(
-//         wgpu::ImageCopyTexture {
-//             texture: &self._foreground_texture.texture,
-//             mip_level: 0,
-//             origin: Default::default(),
-//             aspect: Default::default(),
-//         },
-//         &self.foreground_surface.raw_values(),
-//         wgpu::ImageDataLayout {
-//             offset: 0,
-//             bytes_per_row: std::num::NonZeroU32::new(4 * self.screen_size.width),
-//             rows_per_image: std::num::NonZeroU32::new(self.screen_size.height),
-//         },
-//         wgpu::Extent3d {
-//             width: self.screen_size.width,
-//             height: self.screen_size.height,
-//             depth_or_array_layers: 1
-//         }
-//     );
-//
-//     self._foreground_texture.view = self.foreground_texture.texture.create_view(&wgpu::TextureViewDescriptor::default());
-// }
 
 impl Renderer2D {
     pub fn set_background_surface(&mut self, surface: Surface2D) {

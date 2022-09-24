@@ -15,7 +15,7 @@ use game_engine::{
     },
     image::{load_from_memory, Rgba, RgbaImage},
     input::{InputHandler, MouseButton, VirtualKeyCode},
-    Game, GameObject,
+    Game, GameObject, ResizeMode, WindowSettings,
 };
 use std::f32::consts::FRAC_PI_2;
 
@@ -301,12 +301,12 @@ impl GameObject for GFX2DController {
         let renderer_2d = &mut graphics_engine.renderer_2d;
 
         renderer_2d.set_background_surface(Surface2D::new(
-            80,
-            45,
+            1280,
+            720,
             PixelColor::new(26, 178, 255, 255),
         ));
 
-        let surface = Surface2D::new(80, 45, PixelColor::TRANSPARENT);
+        let surface = Surface2D::new(1280, 720, PixelColor::TRANSPARENT);
         // // Color surface in a checkerboard pattern
         // for y in 0..surface.height() {
         //     for x in 0..surface.width() {
@@ -338,11 +338,11 @@ impl GameObject for GFX2DController {
             &TextParameters {
                 text: "Hello world".to_string(),
                 color: PixelColor::BLACK,
-                scale: 20.0,
+                scale: 40.0,
                 font: FontParameters::Default,
             },
             (0, 0).into(),
-            200,
+            400,
             200,
         );
 
@@ -396,7 +396,14 @@ impl GameObject for GameController {
 fn main() {
     env_logger::init();
 
-    let mut game = Game::new("Test game", 1280, 720, true);
+    let mut game = Game::new(
+        "Test game",
+        WindowSettings {
+            window_width: 1280,
+            window_height: 720,
+            resize_mode: ResizeMode::Fullscreen,
+        },
+    );
 
     let prefab_controller = PrefabController::new();
     game.add_game_object(prefab_controller);

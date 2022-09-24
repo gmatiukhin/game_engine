@@ -2,6 +2,7 @@ use log::info;
 use winit::dpi::PhysicalSize;
 use winit::event::WindowEvent;
 use winit::event_loop::ControlFlow;
+use winit::window::Fullscreen;
 use winit::{event::Event, event_loop::EventLoop, window::WindowBuilder};
 
 pub extern crate cgmath;
@@ -29,24 +30,35 @@ pub trait GameObject {
     fn end(&mut self) {}
 }
 
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum ResizeMode {
+    NoResize,
+    Resize,
+    KeepAspectRatio,
+    Fullscreen,
+}
+
+#[derive(Debug, Copy, Clone)]
+pub struct WindowSettings {
+    pub window_width: u32,
+    pub window_height: u32,
+    pub resize_mode: ResizeMode,
+}
+
 pub struct Game {
     title: String,
     game_objects: Vec<Box<dyn GameObject>>,
-    window_width: u32,
-    window_height: u32,
-    resizable: bool,
+    window_settings: WindowSettings,
 }
 
 static mut EXIT_GAME: bool = false;
 
 impl Game {
-    pub fn new(title: &str, window_width: u32, window_height: u32, resizable: bool) -> Self {
+    pub fn new(title: &str, window_settings: WindowSettings) -> Self {
         Self {
             title: title.to_string(),
             game_objects: vec![],
-            window_width,
-            window_height,
-            resizable,
+            window_settings,
         }
     }
 
@@ -60,12 +72,21 @@ impl Game {
         let event_loop = EventLoop::new();
         let window = WindowBuilder::new()
             .with_title(&self.title)
-            .with_inner_size(PhysicalSize::new(self.window_width, self.window_height))
-            .with_resizable(self.resizable)
-            .build(&event_loop)
-            .unwrap();
+            .with_inner_size(PhysicalSize::new(
+                self.window_settings.window_width,
+                self.window_settings.window_height,
+            ));
 
-        let mut graphics_engine = GraphicsEngine::new(&window);
+        let window = match self.window_settings.resize_mode {
+            ResizeMode::NoResize => window.with_resizable(false),
+            ResizeMode::Resize => window.with_resizable(true),
+            ResizeMode::KeepAspectRatio => window.with_resizable(true),
+            ResizeMode::Fullscreen => window.with_fullscreen(Some(Fullscreen::Borderless(None))),
+        }
+        .build(&event_loop)
+        .unwrap();
+
+        let mut graphics_engine = GraphicsEngine::new(&window, self.window_settings);
         let mut input_handler = InputHandler::new();
 
         for go in &mut self.game_objects {
