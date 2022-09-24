@@ -6,16 +6,16 @@ pub enum DrawMode {
     Replace,
 }
 
-pub struct Surface2D {
+pub struct Sprite {
     width: u32,
     height: u32,
-    clear_color: PixelColor,
-    values: Vec<PixelColor>,
+    pub clear_color: PixelColor,
+    pub values: Vec<PixelColor>,
     pub draw_mode: DrawMode,
     text_rasterizer: TextRasterizer,
 }
 
-impl Surface2D {
+impl Sprite {
     pub fn new(width: u32, height: u32, clear_color: PixelColor) -> Self {
         Self {
             width,
@@ -365,18 +365,22 @@ impl Surface2D {
         }
     }
 
-    pub fn clear(&mut self) {
+    pub fn clear(&mut self, clear_color: PixelColor) {
         for el in self.values.iter_mut() {
-            *el = self.clear_color;
+            *el = clear_color;
         }
+        self.clear_color = clear_color;
     }
 
     /// Draws sprite given its top left corner as position
-    pub fn draw_sprite(&mut self, sprite: &image::RgbaImage, position: cgmath::Point2<i32>) {
-        for (x, y, pixel) in sprite.enumerate_pixels() {
-            let x = x as i32 + position.x;
-            let y = y as i32 + position.y;
-            self.draw_pixel((x, y).into(), PixelColor::from(*pixel));
+    pub fn draw_sprite(&mut self, sprite: &Sprite, position: cgmath::Point2<i32>) {
+        for y in 0..sprite.height {
+            for x in 0..sprite.width {
+                let pixel = sprite.pixel(x, y);
+                let x = x as i32 + position.x;
+                let y = y as i32 + position.y;
+                self.draw_pixel((x, y).into(), pixel);
+            }
         }
     }
 
@@ -442,5 +446,9 @@ impl Surface2D {
         self.height = new_size.height;
         self.values
             .resize((self.width * self.height) as usize, self.clear_color);
+    }
+
+    pub fn pixel(&self, x: u32, y: u32) -> PixelColor {
+        self.values[(y * self.width + x) as usize]
     }
 }

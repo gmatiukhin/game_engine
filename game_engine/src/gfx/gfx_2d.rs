@@ -1,5 +1,4 @@
-use crate::gfx::gfx_2d::components_2d::Surface2D;
-use crate::gfx::gfx_2d::components_2d::*;
+use crate::gfx::gfx_2d::components_2d::Sprite;
 use crate::util::OPENGL_TO_WGPU_MATRIX;
 use crate::{ResizeMode, WindowSettings};
 use log::info;
@@ -26,12 +25,10 @@ pub struct Renderer2D {
     index_buffer: wgpu::Buffer,
     texture_bind_group_layout: wgpu::BindGroupLayout,
 
-    background_surface: Surface2D,
-    _background_texture: crate::gfx::texture::Texture,
+    background_sprite: Sprite,
     background_texture_bind_group: wgpu::BindGroup,
 
-    foreground_surface: Surface2D,
-    _foreground_texture: crate::gfx::texture::Texture,
+    foreground_sprite: Sprite,
     foreground_texture_bind_group: wgpu::BindGroup,
 }
 
@@ -164,7 +161,7 @@ impl Renderer2D {
             usage: wgpu::BufferUsages::INDEX,
         });
 
-        let background_surface = Surface2D::new(
+        let background_surface = Sprite::new(
             screen_size.width,
             screen_size.height,
             crate::gfx::texture::PixelColor::BLACK,
@@ -196,7 +193,7 @@ impl Renderer2D {
             ],
         });
 
-        let foreground_surface = Surface2D::new(
+        let foreground_surface = Sprite::new(
             screen_size.width,
             screen_size.height,
             crate::gfx::texture::PixelColor::TRANSPARENT,
@@ -237,11 +234,9 @@ impl Renderer2D {
             vertex_buffer,
             index_buffer,
             texture_bind_group_layout,
-            background_surface,
-            _background_texture: background_texture,
+            background_sprite: background_surface,
             background_texture_bind_group,
-            foreground_surface,
-            _foreground_texture: foreground_texture,
+            foreground_sprite: foreground_surface,
             foreground_texture_bind_group,
         }
     }
@@ -330,8 +325,8 @@ impl Renderer2D {
             .write_buffer(&self.vertex_buffer, 0, bytemuck::cast_slice(&vertices));
 
         if self.window_settings.resize_mode != ResizeMode::KeepAspectRatio {
-            self.background_surface.resize(new_size);
-            self.foreground_surface.resize(new_size);
+            self.background_sprite.resize(new_size);
+            self.foreground_sprite.resize(new_size);
         }
     }
 
@@ -346,7 +341,7 @@ impl Renderer2D {
         let background_texture = crate::gfx::texture::Texture::from_image(
             &self.device,
             &self.queue,
-            &self.background_surface.image(),
+            &self.background_sprite.image(),
             "Background surface texture",
             true,
         );
@@ -370,7 +365,7 @@ impl Renderer2D {
         let foreground_texture = crate::gfx::texture::Texture::from_image(
             &self.device,
             &self.queue,
-            &self.foreground_surface.image(),
+            &self.foreground_sprite.image(),
             "Foreground surface texture",
             true,
         );
@@ -415,19 +410,11 @@ impl Renderer2D {
 }
 
 impl Renderer2D {
-    pub fn set_background_surface(&mut self, surface: Surface2D) {
-        self.background_surface = surface;
+    pub fn background(&mut self) -> &mut Sprite {
+        &mut self.background_sprite
     }
 
-    pub fn background_surface(&mut self) -> &mut Surface2D {
-        &mut self.background_surface
-    }
-
-    pub fn set_foreground_surface(&mut self, surface: Surface2D) {
-        self.foreground_surface = surface;
-    }
-
-    pub fn foreground_surface(&mut self) -> &mut Surface2D {
-        &mut self.foreground_surface
+    pub fn foreground(&mut self) -> &mut Sprite {
+        &mut self.foreground_sprite
     }
 }

@@ -3,7 +3,7 @@ use game_engine::{
     cgmath::{Deg, InnerSpace, One, Point2, Point3, Quaternion, Rad, Vector2, Vector3},
     gfx::{
         gfx_2d::{
-            components_2d::{DrawMode, Surface2D},
+            components_2d::{DrawMode, Sprite},
             text::{FontParameters, TextParameters},
         },
         gfx_3d::{
@@ -278,15 +278,20 @@ impl GameObject for CameraController {
 }
 
 struct GFX2DController {
-    sprite: RgbaImage,
+    sprite: Sprite,
     position: Point2<f32>,
 }
 
 impl GFX2DController {
     fn new() -> Self {
-        let mut sprite = RgbaImage::new(10, 10);
-        for (x, y, pixel) in sprite.enumerate_pixels_mut() {
-            *pixel = Rgba([(x * 25) as u8, (y * 25) as u8, 0, 128]);
+        let mut sprite = Sprite::new(20, 20, PixelColor::TRANSPARENT);
+        for y in 0..sprite.height() {
+            for x in 0..sprite.width() {
+                sprite.draw_pixel(
+                    (x as i32, y as i32).into(),
+                    PixelColor::new((x * 10) as u8, (y * 10) as u8, 0, 200),
+                );
+            }
         }
 
         Self {
@@ -300,27 +305,9 @@ impl GameObject for GFX2DController {
     fn start(&mut self, graphics_engine: &mut GraphicsEngine) {
         let renderer_2d = &mut graphics_engine.renderer_2d;
 
-        renderer_2d.set_background_surface(Surface2D::new(
-            1280,
-            720,
-            PixelColor::new(26, 178, 255, 255),
-        ));
-
-        let surface = Surface2D::new(1280, 720, PixelColor::TRANSPARENT);
-        // // Color surface in a checkerboard pattern
-        // for y in 0..surface.height() {
-        //     for x in 0..surface.width() {
-        //         let color: PixelColor = if (x + y) % 2 == 0 {
-        //             Color::RED
-        //         } else {
-        //             Color::BLUE
-        //         };
-        //
-        //         surface.draw_color_point((x as i32, y as i32).into(), color);
-        //     }
-        // }
-
-        renderer_2d.set_foreground_surface(surface);
+        renderer_2d
+            .background()
+            .clear(PixelColor::new(26, 178, 255, 255));
     }
 
     fn update(
@@ -331,8 +318,8 @@ impl GameObject for GFX2DController {
     ) {
         let gui = &mut graphics_engine.renderer_2d;
 
-        let surface = gui.foreground_surface();
-        surface.clear();
+        let surface = gui.foreground();
+        surface.clear(PixelColor::TRANSPARENT);
 
         surface.draw_text(
             &TextParameters {
