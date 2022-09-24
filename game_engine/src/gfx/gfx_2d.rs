@@ -114,7 +114,11 @@ impl Renderer2D {
                 vertex: wgpu::VertexState {
                     module: &gui_shader_module,
                     entry_point: "vs_main",
-                    buffers: &[GUIVertex::format()],
+                    buffers: &[wgpu::VertexBufferLayout {
+                        array_stride: std::mem::size_of::<[f32; 4]>() as wgpu::BufferAddress,
+                        step_mode: wgpu::VertexStepMode::Vertex,
+                        attributes: &wgpu::vertex_attr_array![0 => Float32x2, 1 => Float32x2],
+                    }],
                 },
                 fragment: Some(wgpu::FragmentState {
                     module: &gui_shader_module,
@@ -144,28 +148,7 @@ impl Renderer2D {
             })
         };
 
-        let vertices = vec![
-            // Top left
-            GUIVertex {
-                position: [0.0, 0.0],
-                text_coords: [0.0, 0.0],
-            },
-            // Bottom left
-            GUIVertex {
-                position: [0.0, screen_size.height as f32],
-                text_coords: [0.0, 1.0],
-            },
-            // Bottom right
-            GUIVertex {
-                position: [screen_size.width as f32, screen_size.height as f32],
-                text_coords: [1.0, 1.0],
-            },
-            // Top right
-            GUIVertex {
-                position: [screen_size.width as f32, 0.0],
-                text_coords: [1.0, 0.0],
-            },
-        ];
+        let vertices = Self::create_screen_size_square(screen_size);
 
         let indices: Vec<u32> = vec![0, 1, 2, 0, 2, 3];
 
@@ -341,31 +324,7 @@ impl Renderer2D {
                 1000.0,
             );
 
-        let vertices = vec![
-            // Top left
-            GUIVertex {
-                position: [0.0, 0.0],
-                text_coords: [0.0, 0.0],
-            },
-            // Bottom left
-            GUIVertex {
-                position: [0.0, self.screen_size.height as f32],
-                text_coords: [0.0, 1.0],
-            },
-            // Bottom right
-            GUIVertex {
-                position: [
-                    self.screen_size.width as f32,
-                    self.screen_size.height as f32,
-                ],
-                text_coords: [1.0, 1.0],
-            },
-            // Top right
-            GUIVertex {
-                position: [self.screen_size.width as f32, 0.0],
-                text_coords: [1.0, 0.0],
-            },
-        ];
+        let vertices = Self::create_screen_size_square(self.screen_size);
 
         self.queue
             .write_buffer(&self.vertex_buffer, 0, bytemuck::cast_slice(&vertices));
@@ -434,6 +393,24 @@ impl Renderer2D {
 
         self.background_texture_bind_group = background_texture_bind_group;
         self.foreground_texture_bind_group = foreground_texture_bind_group;
+    }
+
+    #[rustfmt::skip]
+    fn create_screen_size_square(screen_size: PhysicalSize<u32>) -> [f32; 16] {
+        [
+            // Top left
+            0.0, 0.0,
+            0.0, 0.0,
+            // Bottom left
+            0.0, screen_size.height as f32,
+            0.0, 1.0,
+            // Bottom right
+            screen_size.width as f32, screen_size.height as f32,
+            1.0, 1.0,
+            // Top right
+            screen_size.width as f32, 0.0,
+            1.0, 0.0,
+        ]
     }
 }
 

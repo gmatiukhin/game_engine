@@ -401,7 +401,7 @@ fn main() {
         WindowSettings {
             window_width: 1280,
             window_height: 720,
-            resize_mode: ResizeMode::Fullscreen,
+            resize_mode: ResizeMode::Resize,
         },
     );
 
