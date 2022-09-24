@@ -15,7 +15,6 @@ pub struct GraphicsEngine {
     queue: Rc<wgpu::Queue>,
     surface: wgpu::Surface,
     surface_config: wgpu::SurfaceConfiguration,
-    window_settings: WindowSettings,
 
     screen_size: PhysicalSize<u32>,
 
@@ -78,7 +77,6 @@ impl GraphicsEngine {
             queue,
             surface,
             surface_config,
-            window_settings,
             renderer_3d,
             renderer_2d,
         }
