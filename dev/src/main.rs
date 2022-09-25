@@ -44,7 +44,7 @@ fn main() {
         },
     );
 
-    let prefab_controller = PrefabController::new();
+    let prefab_controller = PrefabController {};
     game.add_game_object(prefab_controller);
 
     let model_controller = ModelController {};

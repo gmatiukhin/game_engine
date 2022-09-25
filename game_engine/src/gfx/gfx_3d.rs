@@ -223,6 +223,7 @@ impl Renderer3D {
     pub(crate) fn update(&mut self) {
         self.camera_state.update(&self.queue);
         self.buffer_models();
+        self.update_prefabs();
     }
 
     pub fn camera(&mut self) -> &mut Camera {
@@ -268,7 +269,7 @@ impl Renderer3D {
 
 /// Methods related to prefabs
 impl Renderer3D {
-    pub fn add_as_prefab(&mut self, model: &Model) -> String {
+    pub fn add_prefab(&mut self, model: Model) {
         let model = model.buffer(&self.device, &self.queue);
 
         let render_pipeline = self.create_pipeline(
@@ -278,7 +279,7 @@ impl Renderer3D {
                 .shader_module
                 .as_ref()
                 .unwrap_or(&self.default_fragment_shader_module()),
-            &format!("Render pipeline for model {}", model.name),
+            &format!("Render pipeline for prefab {}", model.name),
         );
 
         let prefab = Prefab {
@@ -288,46 +289,21 @@ impl Renderer3D {
             instance_buffer: None,
         };
 
-        let name = prefab.name.clone();
-
         self.prefabs
             .insert(prefab.name.clone(), (render_pipeline, prefab));
-
-        name
     }
 
-    pub fn instantiate_prefab(
-        &mut self,
-        prefab_name: &str,
-        position: &cgmath::Point3<f32>,
-        rotation: &cgmath::Quaternion<f32>,
-    ) -> Option<PrefabInstance> {
-        let mut instance_handle = None;
-        self.prefabs
-            .entry(prefab_name.to_string())
-            .and_modify(|(_, prefab)| {
-                instance_handle = Some(prefab.add_instance(position, rotation));
-                prefab.update_buffer(&self.device);
-            });
-
-        instance_handle
+    pub fn get_prefab(&mut self, name: &str) -> Option<&mut Prefab> {
+        self.prefabs.get_mut(name).map(|(_, m)| m)
     }
 
-    pub fn update_prefab_instance(&mut self, instance: &PrefabInstance) {
-        self.prefabs
-            .entry(instance.name.clone())
-            .and_modify(|(_, prefab)| {
-                prefab.update_instance(instance);
-                prefab.update_buffer(&self.device);
-            });
+    pub fn remove_prefab(&mut self, name: &str) {
+        self.prefabs.remove(name);
     }
 
-    pub fn delete_prefab_instance(&mut self, instance: &PrefabInstance) {
-        self.prefabs
-            .entry(instance.name.clone())
-            .and_modify(|(_, prefab)| {
-                prefab.remove_instance(instance);
-                prefab.update_buffer(&self.device);
-            });
+    fn update_prefabs(&mut self) {
+        for (_, (_, prefab)) in &mut self.prefabs {
+            prefab.update_buffer(&self.device);
+        }
     }
 }

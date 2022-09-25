@@ -341,6 +341,7 @@ impl Texture {
     }
 }
 
+#[derive(Debug, Clone)]
 pub enum Material {
     Textured(Image),
     FlatColor(Color),
@@ -362,6 +363,7 @@ pub struct Shader {
     pub contents: String,
 }
 
+#[derive(Debug, Clone)]
 pub struct Image {
     pub name: String,
     pub file: image::DynamicImage,

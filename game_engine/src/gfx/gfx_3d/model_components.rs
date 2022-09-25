@@ -157,48 +157,14 @@ impl ModelBuffered {
     }
 }
 
-pub(super) struct Prefab {
-    pub(super) name: String,
+pub struct Prefab {
+    pub name: String,
     pub(super) model: ModelBuffered,
-    pub(super) transforms: HashMap<usize, InstanceTransform>,
+    pub transforms: HashMap<String, InstanceTransform>,
     pub(super) instance_buffer: Option<wgpu::Buffer>,
 }
 
 impl Prefab {
-    pub(super) fn add_instance(
-        &mut self,
-        position: &cgmath::Point3<f32>,
-        rotation: &cgmath::Quaternion<f32>,
-    ) -> PrefabInstance {
-        self.transforms.insert(
-            self.transforms.len(),
-            InstanceTransform {
-                position: position.clone(),
-                rotation: rotation.clone(),
-            },
-        );
-
-        PrefabInstance {
-            name: self.name.to_string(),
-            hash: self.transforms.len() - 1,
-            position: position.clone(),
-            rotation: rotation.clone(),
-        }
-    }
-
-    pub(super) fn update_instance(&mut self, instance: &PrefabInstance) {
-        self.transforms
-            .entry(instance.hash)
-            .and_modify(|instance_transform| {
-                instance_transform.position = instance.position;
-                instance_transform.rotation = instance.rotation;
-            });
-    }
-
-    pub(super) fn remove_instance(&mut self, instance: &PrefabInstance) {
-        self.transforms.remove(&instance.hash);
-    }
-
     pub(super) fn update_buffer(&mut self, device: &wgpu::Device) {
         info!("Updating buffer of {}", self.name);
         let instance_data: Vec<_> = self
@@ -218,7 +184,6 @@ impl Prefab {
 
     pub(super) fn render<'a>(&'a self, render_pass: &mut wgpu::RenderPass<'a>) {
         if !self.transforms.is_empty() {
-            info!("Rendering prefab: {}", self.name);
             if let Some(instance_buffer) = &self.instance_buffer {
                 render_pass.set_vertex_buffer(1, instance_buffer.slice(..));
                 self.model
@@ -226,13 +191,6 @@ impl Prefab {
             }
         }
     }
-}
-
-pub struct PrefabInstance {
-    pub(super) name: String,
-    pub(super) hash: usize,
-    pub position: cgmath::Point3<f32>,
-    pub rotation: cgmath::Quaternion<f32>,
 }
 
 #[derive(Debug)]
