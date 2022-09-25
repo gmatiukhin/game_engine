@@ -1,5 +1,3 @@
-use crate::gfx::gfx_3d::camera::{Camera, CameraState};
-use crate::gfx::gfx_3d::components_3d::*;
 use crate::gfx::texture;
 use crate::{ResizeMode, WindowSettings};
 use log::info;
@@ -8,7 +6,11 @@ use std::rc::Rc;
 use winit::dpi::PhysicalSize;
 
 pub mod camera;
-pub mod components_3d;
+pub mod model_components;
+
+pub use crate::gfx::gfx_3d::model_components::*;
+pub use camera::Camera;
+use camera::CameraState;
 
 pub struct Renderer3D {
     device: Rc<wgpu::Device>,
@@ -20,7 +22,6 @@ pub struct Renderer3D {
     depth_texture: texture::Texture,
 
     camera_state: CameraState,
-    texture_bind_group_layout: wgpu::BindGroupLayout,
 
     models: HashMap<String, (bool, Model)>,
     buffered_models: HashMap<String, (wgpu::RenderPipeline, ModelBuffered)>,
@@ -41,9 +42,6 @@ impl Renderer3D {
 
         let depth_texture = texture::Texture::depth_texture(&device, &surface_config);
 
-        let texture_bind_group_layout =
-            device.create_bind_group_layout(&texture::TEXTURE_BIND_GROUP_LAYOUT_DESCRIPTOR);
-
         Self {
             device,
             queue,
@@ -52,7 +50,6 @@ impl Renderer3D {
             window_settings,
             depth_texture,
             camera_state,
-            texture_bind_group_layout,
             models: HashMap::new(),
             buffered_models: HashMap::new(),
             prefabs: HashMap::new(),
@@ -102,7 +99,7 @@ impl Renderer3D {
                     label: Some("render_pipeline_layout"),
                     bind_group_layouts: &[
                         &self.camera_state.camera_bind_group_layout,
-                        &self.texture_bind_group_layout,
+                        &texture::Texture::texture_bind_group_layout(&self.device),
                     ],
                     push_constant_ranges: &[],
                 });
@@ -179,8 +176,8 @@ impl Renderer3D {
         });
 
         if self.window_settings.resize_mode == ResizeMode::KeepAspectRatio {
-            let aspect = self.window_settings.window_width as f32
-                / self.window_settings.window_height as f32;
+            let aspect = self.window_settings.logical_width as f32
+                / self.window_settings.logical_height as f32;
             // set up scissors rect with constant aspect ratio that stays in the center
             let (width, height): (f32, f32) = self.screen_size.to_logical::<f32>(1.0).into();
             let (scissors_width, scissors_height) = if width > height * aspect {
@@ -251,8 +248,7 @@ impl Renderer3D {
     fn buffer_models(&mut self) {
         for (name, (should_buffer, model)) in &self.models {
             if *should_buffer {
-                let buff_model =
-                    model.buffer(&self.device, &self.queue, &self.texture_bind_group_layout);
+                let buff_model = model.buffer(&self.device, &self.queue);
                 let render_pipeline = self.create_pipeline(
                     &[VertexRaw::format()],
                     &self.default_vertex_shader_module(),
@@ -273,7 +269,7 @@ impl Renderer3D {
 /// Methods related to prefabs
 impl Renderer3D {
     pub fn add_as_prefab(&mut self, model: &Model) -> String {
-        let model = model.buffer(&self.device, &self.queue, &self.texture_bind_group_layout);
+        let model = model.buffer(&self.device, &self.queue);
 
         let render_pipeline = self.create_pipeline(
             &[VertexRaw::format(), InstanceTransformRaw::format()],

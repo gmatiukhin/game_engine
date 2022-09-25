@@ -1,30 +1,32 @@
 use game_engine::{
     cgmath::{InnerSpace, Point2, Vector2},
     gfx::{
-        gfx_2d::{
-            components_2d::Sprite,
-            text::{FontParameters, TextParameters},
-        },
-        texture::PixelColor,
+        gfx_2d::{FontParameters, Sprite, TextParameters},
+        texture::Color,
         GraphicsEngine,
     },
     input::{InputHandler, VirtualKeyCode},
     GameObject,
 };
 
-pub struct GFX2DController {
+pub struct Controller2D {
     sprite: Sprite,
     position: Point2<f32>,
 }
 
-impl GFX2DController {
+impl Controller2D {
     pub fn new() -> Self {
-        let mut sprite = Sprite::new(20, 20, PixelColor::TRANSPARENT);
+        let mut sprite = Sprite::new(20, 20, Color::TRANSPARENT);
         for y in 0..sprite.height() {
             for x in 0..sprite.width() {
                 sprite.draw_pixel(
                     (x as i32, y as i32).into(),
-                    PixelColor::new((x * 10) as u8, (y * 10) as u8, 0, 200),
+                    Color::new(
+                        (x * 10) as u8,
+                        (y * 10) as u8,
+                        0,
+                        if x < sprite.width() / 2 { 200 } else { 255 },
+                    ),
                 );
             }
         }
@@ -36,13 +38,13 @@ impl GFX2DController {
     }
 }
 
-impl GameObject for GFX2DController {
+impl GameObject for Controller2D {
     fn start(&mut self, graphics_engine: &mut GraphicsEngine) {
         let renderer_2d = &mut graphics_engine.renderer_2d;
 
         renderer_2d
             .background()
-            .clear(PixelColor::new(26, 178, 255, 255));
+            .clear(Color::new(26, 178, 255, 255));
     }
 
     fn update(
@@ -54,12 +56,12 @@ impl GameObject for GFX2DController {
         let gui = &mut graphics_engine.renderer_2d;
 
         let surface = gui.foreground();
-        surface.clear(PixelColor::TRANSPARENT);
+        surface.clear(Color::TRANSPARENT);
 
         surface.draw_text(
             &TextParameters {
                 text: "Hello world".to_string(),
-                color: PixelColor::BLACK,
+                color: Color::BLACK,
                 scale: 40.0,
                 font: FontParameters::Default,
             },

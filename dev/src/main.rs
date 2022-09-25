@@ -9,7 +9,7 @@ mod controller_2d;
 mod controller_3d;
 
 use camera_controller::CameraController;
-use controller_2d::GFX2DController;
+use controller_2d::Controller2D;
 use controller_3d::ModelController;
 use controller_3d::PrefabController;
 
@@ -38,9 +38,9 @@ fn main() {
     let mut game = Game::new(
         "Test game",
         WindowSettings {
-            window_width: 1280,
-            window_height: 720,
-            resize_mode: ResizeMode::Resize,
+            logical_width: 640,
+            logical_height: 360,
+            resize_mode: ResizeMode::KeepAspectRatio,
         },
     );
 
@@ -53,7 +53,7 @@ fn main() {
     let camera_controller = CameraController {};
     game.add_game_object(camera_controller);
 
-    let ui = GFX2DController::new();
+    let ui = Controller2D::new();
     game.add_game_object(ui);
 
     let game_controller = GameController {};

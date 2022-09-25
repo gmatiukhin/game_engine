@@ -1,3 +1,4 @@
+use crate::gfx::texture::Color;
 use ab_glyph::*;
 
 pub(crate) struct TextRasterizer {
@@ -85,7 +86,7 @@ impl TextRasterizer {
         glyphs: Vec<Glyph>,
         width: u32,
         height: u32,
-        color: &crate::gfx::texture::PixelColor,
+        color: &Color,
     ) -> Vec<u8> {
         let width = width as usize;
         let height = height as usize;
@@ -120,8 +121,11 @@ pub enum FontParameters {
 
 pub struct TextParameters {
     pub text: String,
-    pub color: crate::gfx::texture::PixelColor,
+    pub color: Color,
+
     /// Text scale in points
+    ///
+    /// Stays the same if the window can be resized freely
     pub scale: f32,
     pub font: FontParameters,
 }

@@ -9,3 +9,23 @@ pub const OPENGL_TO_WGPU_MATRIX: cgmath::Matrix4<f32> = cgmath::Matrix4::new(
     0.0, 0.0, 0.5, 0.0,
     0.0, 0.0, 0.5, 1.0,
 );
+
+pub fn ortho(
+    left: f32,
+    right: f32,
+    bottom: f32,
+    top: f32,
+    near: f32,
+    far: f32,
+) -> cgmath::Matrix4<f32> {
+    OPENGL_TO_WGPU_MATRIX * cgmath::ortho(left, right, bottom, top, near, far)
+}
+
+pub fn perspective(
+    fovy: impl Into<cgmath::Rad<f32>>,
+    aspect: f32,
+    near: f32,
+    far: f32,
+) -> cgmath::Matrix4<f32> {
+    OPENGL_TO_WGPU_MATRIX * cgmath::perspective(fovy, aspect, near, far)
+}

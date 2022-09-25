@@ -1,6 +1,6 @@
 #[repr(C)]
 #[derive(Debug, Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
-pub struct PixelColor {
+pub struct Color {
     pub r: u8,
     pub g: u8,
     pub b: u8,
@@ -8,7 +8,7 @@ pub struct PixelColor {
 }
 
 /// Constants
-impl PixelColor {
+impl Color {
     pub fn new(r: u8, g: u8, b: u8, a: u8) -> Self {
         Self { r, g, b, a }
     }
@@ -78,7 +78,7 @@ impl PixelColor {
     };
 }
 
-impl PixelColor {
+impl Color {
     pub fn premultiply(&self) -> Self {
         let r = (self.r as f32 * self.a as f32 / 255.0) as u8;
         let g = (self.g as f32 * self.a as f32 / 255.0) as u8;
@@ -99,7 +99,7 @@ impl PixelColor {
     }
 }
 
-impl Into<wgpu::Color> for PixelColor {
+impl Into<wgpu::Color> for Color {
     fn into(self) -> wgpu::Color {
         wgpu::Color {
             r: self.r as f64 / 255.0,
@@ -110,7 +110,7 @@ impl Into<wgpu::Color> for PixelColor {
     }
 }
 
-impl From<wgpu::Color> for PixelColor {
+impl From<wgpu::Color> for Color {
     fn from(color: wgpu::Color) -> Self {
         Self {
             r: (color.r * 255.0) as u8,
@@ -121,13 +121,13 @@ impl From<wgpu::Color> for PixelColor {
     }
 }
 
-impl Into<image::Rgba<u8>> for PixelColor {
+impl Into<image::Rgba<u8>> for Color {
     fn into(self) -> image::Rgba<u8> {
         image::Rgba([self.r, self.g, self.b, self.a])
     }
 }
 
-impl From<image::Rgba<u8>> for PixelColor {
+impl From<image::Rgba<u8>> for Color {
     fn from(rgba8: image::Rgba<u8>) -> Self {
         Self {
             r: rgba8[0],
@@ -141,31 +141,8 @@ impl From<image::Rgba<u8>> for PixelColor {
 pub(in crate::gfx) const DEPTH_TEXTURE_FORMAT: wgpu::TextureFormat =
     wgpu::TextureFormat::Depth32Float;
 
-pub(crate) const TEXTURE_BIND_GROUP_LAYOUT_DESCRIPTOR: wgpu::BindGroupLayoutDescriptor<'static> =
-    wgpu::BindGroupLayoutDescriptor {
-        label: Some("texture_bind_group_layout"),
-        entries: &[
-            wgpu::BindGroupLayoutEntry {
-                binding: 0,
-                visibility: wgpu::ShaderStages::FRAGMENT,
-                ty: wgpu::BindingType::Texture {
-                    sample_type: wgpu::TextureSampleType::Float { filterable: true },
-                    view_dimension: wgpu::TextureViewDimension::D2,
-                    multisampled: false,
-                },
-                count: None,
-            },
-            wgpu::BindGroupLayoutEntry {
-                binding: 1,
-                visibility: wgpu::ShaderStages::FRAGMENT,
-                ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
-                count: None,
-            },
-        ],
-    };
-
 pub struct Texture {
-    pub(crate) texture: wgpu::Texture,
+    pub(crate) _texture: wgpu::Texture,
     pub(crate) view: wgpu::TextureView,
     pub(crate) sampler: wgpu::Sampler,
 }
@@ -209,21 +186,17 @@ impl Texture {
         });
 
         Self {
-            texture,
+            _texture: texture,
             view,
             sampler,
         }
     }
 
     pub(in crate::gfx) fn default_texture(device: &wgpu::Device, queue: &wgpu::Queue) -> Self {
-        Self::from_color(device, queue, &PixelColor::WHITE)
+        Self::from_color(device, queue, &Color::WHITE)
     }
 
-    pub(crate) fn from_color(
-        device: &wgpu::Device,
-        queue: &wgpu::Queue,
-        color: &PixelColor,
-    ) -> Self {
+    pub(crate) fn from_color(device: &wgpu::Device, queue: &wgpu::Queue, color: &Color) -> Self {
         let data = [color.r, color.g, color.b, color.a];
 
         Self::from_bytes_rgba(
@@ -318,16 +291,59 @@ impl Texture {
         });
 
         Self {
-            texture,
+            _texture: texture,
             view,
             sampler,
         }
+    }
+
+    pub(crate) fn texture_bind_group_layout(device: &wgpu::Device) -> wgpu::BindGroupLayout {
+        device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+            label: Some("texture_bind_group_layout"),
+            entries: &[
+                wgpu::BindGroupLayoutEntry {
+                    binding: 0,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Texture {
+                        sample_type: wgpu::TextureSampleType::Float { filterable: true },
+                        view_dimension: wgpu::TextureViewDimension::D2,
+                        multisampled: false,
+                    },
+                    count: None,
+                },
+                wgpu::BindGroupLayoutEntry {
+                    binding: 1,
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Sampler(wgpu::SamplerBindingType::Filtering),
+                    count: None,
+                },
+            ],
+        })
+    }
+
+    pub(crate) fn texture_bind_group(device: &wgpu::Device, texture: &Self) -> wgpu::BindGroup {
+        let texture_bind_group_layout = Self::texture_bind_group_layout(&device);
+
+        device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: None,
+            layout: &texture_bind_group_layout,
+            entries: &[
+                wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: wgpu::BindingResource::TextureView(&texture.view),
+                },
+                wgpu::BindGroupEntry {
+                    binding: 1,
+                    resource: wgpu::BindingResource::Sampler(&texture.sampler),
+                },
+            ],
+        })
     }
 }
 
 pub enum Material {
     Textured(Image),
-    FlatColor(PixelColor),
+    FlatColor(Color),
 }
 
 impl Material {

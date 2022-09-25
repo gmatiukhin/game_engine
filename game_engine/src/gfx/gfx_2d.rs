@@ -1,13 +1,13 @@
-use crate::gfx::gfx_2d::components_2d::Sprite;
-use crate::util::OPENGL_TO_WGPU_MATRIX;
 use crate::{ResizeMode, WindowSettings};
 use log::info;
 use std::rc::Rc;
 use wgpu::util::DeviceExt;
 use winit::dpi::PhysicalSize;
 
-pub mod components_2d;
-pub mod text;
+mod sprite;
+mod text;
+pub use sprite::*;
+pub use text::*;
 
 pub struct Renderer2D {
     device: Rc<wgpu::Device>,
@@ -23,7 +23,6 @@ pub struct Renderer2D {
 
     vertex_buffer: wgpu::Buffer,
     index_buffer: wgpu::Buffer,
-    texture_bind_group_layout: wgpu::BindGroupLayout,
 
     background_sprite: Sprite,
     background_texture_bind_group: wgpu::BindGroup,
@@ -39,18 +38,17 @@ impl Renderer2D {
         surface_config: &wgpu::SurfaceConfiguration,
         window_settings: WindowSettings,
     ) -> Self {
-        info!("Creating RendererGUI");
+        info!("Creating Renderer2D");
         let screen_size: PhysicalSize<u32> = (surface_config.width, surface_config.height).into();
 
-        let projection = OPENGL_TO_WGPU_MATRIX
-            * cgmath::ortho(
-                0.0,
-                screen_size.width as f32,
-                screen_size.height as f32,
-                0.0,
-                -1.0,
-                1000.0,
-            );
+        let projection = crate::util::ortho(
+            0.0,
+            screen_size.width as f32,
+            screen_size.height as f32,
+            0.0,
+            -1.0,
+            1000.0,
+        );
 
         let projection_raw: [[f32; 4]; 4] = projection.into();
 
@@ -84,8 +82,8 @@ impl Renderer2D {
             }],
         });
 
-        let texture_bind_group_layout = device
-            .create_bind_group_layout(&crate::gfx::texture::TEXTURE_BIND_GROUP_LAYOUT_DESCRIPTOR);
+        let texture_bind_group_layout =
+            crate::gfx::texture::Texture::texture_bind_group_layout(&device);
 
         let render_pipeline = {
             let render_pipeline_layout =
@@ -164,7 +162,7 @@ impl Renderer2D {
         let background_surface = Sprite::new(
             screen_size.width,
             screen_size.height,
-            crate::gfx::texture::PixelColor::BLACK,
+            crate::gfx::texture::Color::BLACK,
         );
 
         let background_texture = crate::gfx::texture::Texture::from_image(
@@ -175,28 +173,13 @@ impl Renderer2D {
             true,
         );
 
-        let background_texture_view_resource =
-            wgpu::BindingResource::TextureView(&background_texture.view);
-
-        let background_texture_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-            label: Some("Background surface texture bind group"),
-            layout: &texture_bind_group_layout,
-            entries: &[
-                wgpu::BindGroupEntry {
-                    binding: 0,
-                    resource: background_texture_view_resource,
-                },
-                wgpu::BindGroupEntry {
-                    binding: 1,
-                    resource: wgpu::BindingResource::Sampler(&background_texture.sampler),
-                },
-            ],
-        });
+        let background_texture_bind_group =
+            crate::gfx::texture::Texture::texture_bind_group(&device, &background_texture);
 
         let foreground_surface = Sprite::new(
             screen_size.width,
             screen_size.height,
-            crate::gfx::texture::PixelColor::TRANSPARENT,
+            crate::gfx::texture::Color::TRANSPARENT,
         );
 
         let foreground_texture = crate::gfx::texture::Texture::from_image(
@@ -207,20 +190,8 @@ impl Renderer2D {
             true,
         );
 
-        let foreground_texture_bind_group = device.create_bind_group(&wgpu::BindGroupDescriptor {
-            label: Some("Foreground surface texture bind group"),
-            layout: &texture_bind_group_layout,
-            entries: &[
-                wgpu::BindGroupEntry {
-                    binding: 0,
-                    resource: wgpu::BindingResource::TextureView(&foreground_texture.view),
-                },
-                wgpu::BindGroupEntry {
-                    binding: 1,
-                    resource: wgpu::BindingResource::Sampler(&foreground_texture.sampler),
-                },
-            ],
-        });
+        let foreground_texture_bind_group =
+            crate::gfx::texture::Texture::texture_bind_group(&device, &foreground_texture);
 
         Self {
             device,
@@ -233,7 +204,6 @@ impl Renderer2D {
             projection_bind_group,
             vertex_buffer,
             index_buffer,
-            texture_bind_group_layout,
             background_sprite: background_surface,
             background_texture_bind_group,
             foreground_sprite: foreground_surface,
@@ -277,8 +247,8 @@ impl Renderer2D {
         });
 
         if self.window_settings.resize_mode == ResizeMode::KeepAspectRatio {
-            let aspect = self.window_settings.window_width as f32
-                / self.window_settings.window_height as f32;
+            let aspect = self.window_settings.logical_width as f32
+                / self.window_settings.logical_height as f32;
             // set up scissors rect with constant aspect ratio that stays in the center
             let (width, height): (f32, f32) = self.screen_size.to_logical::<f32>(1.0).into();
             let (scissors_width, scissors_height) = if width > height * aspect {
@@ -309,15 +279,14 @@ impl Renderer2D {
 
     pub(crate) fn resize(&mut self, new_size: PhysicalSize<u32>) {
         self.screen_size = new_size;
-        self.projection = OPENGL_TO_WGPU_MATRIX
-            * cgmath::ortho(
-                0.0,
-                self.screen_size.width as f32,
-                self.screen_size.height as f32,
-                0.0,
-                -1.0,
-                1000.0,
-            );
+        self.projection = crate::util::ortho(
+            0.0,
+            self.screen_size.width as f32,
+            self.screen_size.height as f32,
+            0.0,
+            -1.0,
+            1000.0,
+        );
 
         let vertices = Self::create_screen_size_square(self.screen_size);
 
@@ -346,21 +315,8 @@ impl Renderer2D {
             true,
         );
 
-        let background_texture_bind_group =
-            self.device.create_bind_group(&wgpu::BindGroupDescriptor {
-                label: Some("Background surface texture bind group"),
-                layout: &self.texture_bind_group_layout,
-                entries: &[
-                    wgpu::BindGroupEntry {
-                        binding: 0,
-                        resource: wgpu::BindingResource::TextureView(&background_texture.view),
-                    },
-                    wgpu::BindGroupEntry {
-                        binding: 1,
-                        resource: wgpu::BindingResource::Sampler(&background_texture.sampler),
-                    },
-                ],
-            });
+        self.background_texture_bind_group =
+            crate::gfx::texture::Texture::texture_bind_group(&self.device, &background_texture);
 
         let foreground_texture = crate::gfx::texture::Texture::from_image(
             &self.device,
@@ -370,24 +326,8 @@ impl Renderer2D {
             true,
         );
 
-        let foreground_texture_bind_group =
-            self.device.create_bind_group(&wgpu::BindGroupDescriptor {
-                label: Some("Foreground surface texture bind group"),
-                layout: &self.texture_bind_group_layout,
-                entries: &[
-                    wgpu::BindGroupEntry {
-                        binding: 0,
-                        resource: wgpu::BindingResource::TextureView(&foreground_texture.view),
-                    },
-                    wgpu::BindGroupEntry {
-                        binding: 1,
-                        resource: wgpu::BindingResource::Sampler(&foreground_texture.sampler),
-                    },
-                ],
-            });
-
-        self.background_texture_bind_group = background_texture_bind_group;
-        self.foreground_texture_bind_group = foreground_texture_bind_group;
+        self.foreground_texture_bind_group =
+            crate::gfx::texture::Texture::texture_bind_group(&self.device, &foreground_texture);
     }
 
     #[rustfmt::skip]

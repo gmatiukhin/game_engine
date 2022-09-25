@@ -1,7 +1,7 @@
 use game_engine::{
     cgmath::{One, Quaternion},
     gfx::{
-        gfx_3d::components_3d::{Mesh, Model, PrefabInstance, Vertex},
+        gfx_3d::{Mesh, Model, PrefabInstance, Vertex},
         texture::{Image, Material},
         GraphicsEngine,
     },

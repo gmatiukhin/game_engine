@@ -1,8 +1,6 @@
 use cgmath::*;
 use wgpu::util::DeviceExt;
 
-use crate::util::OPENGL_TO_WGPU_MATRIX;
-
 #[derive(Debug)]
 pub struct Camera {
     pub position: Point3<f32>,
@@ -43,7 +41,7 @@ impl Camera {
 
     pub(crate) fn calc_projection(&self) -> Matrix4<f32> {
         // perspective() returns right-handed projection matrix
-        OPENGL_TO_WGPU_MATRIX * perspective(self.fovy, self.aspect, self.z_near, self.z_far)
+        crate::util::perspective(self.fovy, self.aspect, self.z_near, self.z_far)
     }
 
     pub(crate) fn resize(&mut self, width: u32, height: u32) {
@@ -77,7 +75,7 @@ impl Camera {
 
 #[repr(C)]
 #[derive(Debug, Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
-pub struct CameraUniform {
+struct CameraUniform {
     view_position: [f32; 4],
     // Can't use cgmath with bytemuck directly.
     // Need to convert the Matrix4 into a 4x4 f32 array
@@ -99,11 +97,11 @@ impl CameraUniform {
 }
 
 pub(crate) struct CameraState {
-    pub(crate) camera: Camera,
-    pub(crate) camera_uniform: CameraUniform,
-    pub(crate) camera_buffer: wgpu::Buffer,
-    pub(crate) camera_bind_group_layout: wgpu::BindGroupLayout,
-    pub(crate) camera_bind_group: wgpu::BindGroup,
+    pub(super) camera: Camera,
+    camera_uniform: CameraUniform,
+    pub(super) camera_buffer: wgpu::Buffer,
+    pub(super) camera_bind_group_layout: wgpu::BindGroupLayout,
+    pub(super) camera_bind_group: wgpu::BindGroup,
 }
 
 impl CameraState {

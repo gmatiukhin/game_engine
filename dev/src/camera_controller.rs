@@ -41,10 +41,10 @@ impl GameObject for CameraController {
             translation.x += -1.0;
         };
 
-        if input_handler.is_key_held(&VirtualKeyCode::Space) {
+        if input_handler.is_key_held(&VirtualKeyCode::E) {
             translation.y += 1.0;
         }
-        if input_handler.is_key_held(&VirtualKeyCode::LShift) {
+        if input_handler.is_key_held(&VirtualKeyCode::Q) {
             translation.y += -1.0;
         }
 

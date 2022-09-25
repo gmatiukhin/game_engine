@@ -40,8 +40,8 @@ pub enum ResizeMode {
 
 #[derive(Debug, Copy, Clone)]
 pub struct WindowSettings {
-    pub window_width: u32,
-    pub window_height: u32,
+    pub logical_width: u32,
+    pub logical_height: u32,
     pub resize_mode: ResizeMode,
 }
 
@@ -73,8 +73,8 @@ impl Game {
         let window = WindowBuilder::new()
             .with_title(&self.title)
             .with_inner_size(PhysicalSize::new(
-                self.window_settings.window_width,
-                self.window_settings.window_height,
+                self.window_settings.logical_width,
+                self.window_settings.logical_height,
             ));
 
         let window = match self.window_settings.resize_mode {
