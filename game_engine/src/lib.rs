@@ -18,23 +18,48 @@ pub mod util;
 
 #[allow(unused_variables)]
 pub trait GameObject {
-    fn start(&mut self, graphics_engine: &mut GraphicsEngine) {}
+    fn start(&mut self, game_state: &mut GameState, graphics_engine: &mut GraphicsEngine) {}
 
     fn update(
         &mut self,
+        game_state: &mut GameState,
         graphics_engine: &mut GraphicsEngine,
         input_handler: &mut InputHandler,
-        dt: f32,
     );
 
     fn end(&mut self) {}
 }
 
+pub struct GameState {
+    frame_size: PhysicalSize<u32>,
+    fps: u32,
+    dt: f32,
+    exit: bool,
+}
+
+impl GameState {
+    pub fn frame_size(&self) -> PhysicalSize<u32> {
+        self.frame_size
+    }
+
+    pub fn fps(&self) -> u32 {
+        self.fps
+    }
+
+    pub fn dt(&self) -> f32 {
+        self.dt
+    }
+
+    pub fn exit(&mut self) {
+        self.exit = true;
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum ResizeMode {
-    NoResize,
-    Resize,
     KeepAspectRatio,
+    Resize,
+    NoResize,
     Fullscreen,
 }
 
@@ -50,8 +75,6 @@ pub struct Game {
     game_objects: Vec<Box<dyn GameObject>>,
     window_settings: WindowSettings,
 }
-
-static mut EXIT_GAME: bool = false;
 
 impl Game {
     pub fn new(title: &str, window_settings: WindowSettings) -> Self {
@@ -89,15 +112,23 @@ impl Game {
         let mut graphics_engine = GraphicsEngine::new(&window, self.window_settings);
         let mut input_handler = InputHandler::new();
 
+        let mut game_state = GameState {
+            frame_size: PhysicalSize::new(
+                self.window_settings.logical_width,
+                self.window_settings.logical_height,
+            ),
+            fps: 0,
+            dt: 0.0,
+            exit: false,
+        };
+
         for go in &mut self.game_objects {
-            go.start(&mut graphics_engine);
+            go.start(&mut game_state, &mut graphics_engine);
         }
 
-        unsafe {
-            if EXIT_GAME {
-                self.call_end();
-                return;
-            }
+        if game_state.exit {
+            self.call_end();
+            return;
         }
 
         graphics_engine.update();
@@ -113,9 +144,11 @@ impl Game {
                             *control_flow = ControlFlow::Exit
                         }
                         WindowEvent::Resized(physical_size) => {
+                            game_state.frame_size = physical_size;
                             graphics_engine.resize(physical_size);
                         }
                         WindowEvent::ScaleFactorChanged { new_inner_size, .. } => {
+                            game_state.frame_size = *new_inner_size;
                             graphics_engine.resize(*new_inner_size);
                         }
                         _ => {}
@@ -125,16 +158,18 @@ impl Game {
                     let now = std::time::Instant::now();
                     let dt = now - last_time;
                     last_time = now;
+                    game_state.fps = (std::time::Duration::from_secs(1) / dt.as_nanos() as u32)
+                        .as_nanos() as u32;
+                    game_state.dt = dt.as_secs_f32();
+                    println!("FPS: {}", game_state.fps);
 
                     for go in &mut self.game_objects {
-                        go.update(&mut graphics_engine, &mut input_handler, dt.as_secs_f32());
+                        go.update(&mut game_state, &mut graphics_engine, &mut input_handler);
                     }
 
-                    unsafe {
-                        if EXIT_GAME {
-                            self.call_end();
-                            *control_flow = ControlFlow::Exit;
-                        }
+                    if game_state.exit {
+                        self.call_end();
+                        *control_flow = ControlFlow::Exit;
                     }
 
                     input_handler.update_input_state();
@@ -155,12 +190,6 @@ impl Game {
                 _ => {}
             }
         })
-    }
-
-    pub fn exit() {
-        unsafe {
-            EXIT_GAME = true;
-        }
     }
 
     fn call_end(&mut self) {

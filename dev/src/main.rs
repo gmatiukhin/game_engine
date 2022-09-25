@@ -1,7 +1,7 @@
 use game_engine::{
     gfx::GraphicsEngine,
     input::{InputHandler, VirtualKeyCode},
-    Game, GameObject, ResizeMode, WindowSettings,
+    Game, GameObject, GameState, ResizeMode, WindowSettings,
 };
 
 mod camera_controller;
@@ -18,12 +18,12 @@ struct GameController {}
 impl GameObject for GameController {
     fn update(
         &mut self,
+        game_state: &mut GameState,
         _graphics_engine: &mut GraphicsEngine,
         input_handler: &mut InputHandler,
-        _dt: f32,
     ) {
         if input_handler.is_key_down(&VirtualKeyCode::Escape) {
-            Game::exit();
+            game_state.exit();
         }
     }
 

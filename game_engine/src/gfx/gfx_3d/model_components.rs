@@ -201,7 +201,7 @@ pub struct InstanceTransform {
 
 impl InstanceTransform {
     pub(super) fn as_raw(&self) -> InstanceTransformRaw {
-        info!("Transforming Instance into InstanceTransformRaw");
+        info!("Transforming InstanceTransform into InstanceTransformRaw");
         InstanceTransformRaw {
             translation: (cgmath::Matrix4::from_translation(self.position.to_vec())
                 * cgmath::Matrix4::from(self.rotation))

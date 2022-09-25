@@ -1,3 +1,6 @@
 [workspace]
 members = ["game_engine", "dev"]
 resolver = "2"
+
+[profile.dev]
+opt-level=1

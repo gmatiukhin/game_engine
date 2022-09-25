@@ -7,13 +7,13 @@ use game_engine::{
     },
     image::load_from_memory,
     input::{InputHandler, VirtualKeyCode},
-    GameObject,
+    GameObject, GameState,
 };
 
 pub struct PrefabController {}
 
 impl GameObject for PrefabController {
-    fn start(&mut self, graphics_engine: &mut GraphicsEngine) {
+    fn start(&mut self, _game_state: &mut GameState, graphics_engine: &mut GraphicsEngine) {
         let vertices = vec![
             Vertex {
                 position: (0.0, 1.0, 0.0).into(),
@@ -66,10 +66,11 @@ impl GameObject for PrefabController {
 
     fn update(
         &mut self,
+        game_state: &mut GameState,
         graphics_engine: &mut GraphicsEngine,
         input_handler: &mut InputHandler,
-        dt: f32,
     ) {
+        let dt = game_state.dt();
         let renderer = &mut graphics_engine.renderer_3d;
 
         if let Some(prefab) = renderer.get_prefab("Square Prefab") {
@@ -108,7 +109,7 @@ impl GameObject for PrefabController {
 pub struct ModelController {}
 
 impl GameObject for ModelController {
-    fn start(&mut self, graphics_engine: &mut GraphicsEngine) {
+    fn start(&mut self, _game_state: &mut GameState, graphics_engine: &mut GraphicsEngine) {
         let vertices = vec![
             Vertex {
                 position: (0.0, 1.0, 0.0).into(),
@@ -152,10 +153,11 @@ impl GameObject for ModelController {
 
     fn update(
         &mut self,
+        game_state: &mut GameState,
         graphics_engine: &mut GraphicsEngine,
         input_handler: &mut InputHandler,
-        dt: f32,
     ) {
+        let dt = game_state.dt();
         let renderer = &mut graphics_engine.renderer_3d;
         if let Some(Model { mesh, .. }) = renderer.get_model("Square model") {
             if input_handler.is_key_held(&VirtualKeyCode::I) {

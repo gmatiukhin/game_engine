@@ -6,7 +6,7 @@ use game_engine::{
         GraphicsEngine,
     },
     input::{InputHandler, VirtualKeyCode},
-    GameObject,
+    GameObject, GameState,
 };
 
 pub struct Controller2D {
@@ -39,7 +39,7 @@ impl Controller2D {
 }
 
 impl GameObject for Controller2D {
-    fn start(&mut self, graphics_engine: &mut GraphicsEngine) {
+    fn start(&mut self, _game_state: &mut GameState, graphics_engine: &mut GraphicsEngine) {
         let renderer_2d = &mut graphics_engine.renderer_2d;
 
         renderer_2d
@@ -49,9 +49,9 @@ impl GameObject for Controller2D {
 
     fn update(
         &mut self,
+        game_state: &mut GameState,
         graphics_engine: &mut GraphicsEngine,
         input_handler: &mut InputHandler,
-        dt: f32,
     ) {
         let gui = &mut graphics_engine.renderer_2d;
 
@@ -88,7 +88,7 @@ impl GameObject for Controller2D {
             speed *= 2.0;
         }
 
-        direction *= speed * dt;
+        direction *= speed * game_state.dt();
         self.position += direction;
 
         surface.draw_sprite(

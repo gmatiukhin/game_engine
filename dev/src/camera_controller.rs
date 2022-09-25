@@ -2,7 +2,7 @@ use game_engine::{
     cgmath::{Deg, InnerSpace, Point3, Rad, Vector3},
     gfx::GraphicsEngine,
     input::{InputHandler, MouseButton, VirtualKeyCode},
-    GameObject,
+    GameObject, GameState,
 };
 use std::f32::consts::FRAC_PI_2;
 
@@ -19,17 +19,18 @@ impl CameraController {
 }
 
 impl GameObject for CameraController {
-    fn start(&mut self, graphics_engine: &mut GraphicsEngine) {
+    fn start(&mut self, _game_state: &mut GameState, graphics_engine: &mut GraphicsEngine) {
         let renderer = &mut graphics_engine.renderer_3d;
         renderer.camera().position = Point3::new(0.0, 0.0, 2.0);
     }
 
     fn update(
         &mut self,
+        game_state: &mut GameState,
         graphics_engine: &mut GraphicsEngine,
         input_handler: &mut InputHandler,
-        dt: f32,
     ) {
+        let dt = game_state.dt();
         let renderer = &mut graphics_engine.renderer_3d;
         let camera = renderer.camera();
 
