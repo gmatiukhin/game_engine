@@ -33,8 +33,6 @@ impl GameObject for GameController {
 }
 
 fn main() {
-    env_logger::init();
-
     let mut game = Game::new(
         "Test game",
         WindowSettings {

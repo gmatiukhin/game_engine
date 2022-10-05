@@ -161,7 +161,6 @@ impl Game {
                     game_state.fps = (std::time::Duration::from_secs(1) / dt.as_nanos() as u32)
                         .as_nanos() as u32;
                     game_state.dt = dt.as_secs_f32();
-                    println!("FPS: {}", game_state.fps);
 
                     for go in &mut self.game_objects {
                         go.update(&mut game_state, &mut graphics_engine, &mut input_handler);

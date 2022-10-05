@@ -37,7 +37,7 @@ impl GameObject for PrefabController {
 
         let mesh = Mesh { vertices, indices };
 
-        let buffer = std::fs::read("./dev/res/textures/stone_bricks.jpg").unwrap();
+        let buffer = std::fs::read("./examples/demo/res/textures/stone_bricks.jpg").unwrap();
         let image = load_from_memory(&buffer).unwrap();
 
         let model = Model::new(
@@ -133,7 +133,7 @@ impl GameObject for ModelController {
 
         let mesh = Mesh { vertices, indices };
 
-        let buffer = std::fs::read("./dev/res/textures/stone_bricks.jpg").unwrap();
+        let buffer = std::fs::read("./examples/demo/res/textures/stone_bricks.jpg").unwrap();
         let image = load_from_memory(&buffer).unwrap();
 
         let model = Model::new(
